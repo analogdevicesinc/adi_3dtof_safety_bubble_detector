@@ -1,0 +1,169 @@
+<?xml version="1.0"?>
+<launch>
+    
+    <!-- Single ADTF31xx ToF Camera Safety Bubble Demo. -->
+    
+    <!-- Adjust the prefix based on the actual value -->
+    <arg name="ns_prefix_cam" default="cam1" />
+
+    <!-- Set the camera height from ground -->
+    <arg name="arg_camera_height_from_ground_in_mtr"  default="0.17"/>
+    <!-- Virtual camera height -->
+    <arg name="arg_virtual_camera_height_z_in_mtr" value="5.0"/>
+    <!-- Safety bubble radius from the camera -->
+    <arg name="arg_safety_bubble_radius_in_mtr" default="1.0"/>
+    <!-- Shape of the safety bubble 0 = circular around camera, 1 = Square around camera-->
+    <arg name="arg_safety_bubble_shape" default="0"/>
+	<!-- Sensitivity of triggering the red flag in case of intrusion (1 highly sensitive, 100 less sensitive, default 10)  -->
+	<arg name="arg_safety_bubble_detection_sensitivity" default="10"/>
+
+    
+    <!-- Parameters related to input and output modes -->
+    <!-- Input mode
+        0:Real Time Sensor
+        2:Rosbag bin
+    -->
+	<arg name="arg_input_mode" default="0"/>
+    <!-- Output mode
+        1:Creates ouput avi file
+    -->   
+	<arg name="arg_output_mode" default="0"/>
+    <!-- Input mode argument
+        if "arg_input_mode" is 2 then "arg_input_file_name_or_ros_topic_prefix_name" represents the file name.
+        Ex: <arg name="arg_input_file_name_or_ros_topic_prefix_name" default=""$(find adi_3dtof_safety_bubble_detector)/../adi_3dtof_input_video_files/17cm_1m_single_person_entering_zone.bin"/>
+        if "arg_input_mode" is 3 then "arg_input_file_name_or_ros_topic_prefix_name" represents the prefix of ros topics.
+        Ex: <arg name="arg_input_file_name_or_ros_topic_prefix_name" default="cam1"/>
+    -->
+    <arg name="arg_input_file_name_or_ros_topic_prefix_name" default="$(find adi_3dtof_safety_bubble_detector)/../adi_3dtof_input_video_files/17cm_1m_single_person_entering_zone.bin"/>
+
+    <!-- Parameters related to ransac floor detection -->
+    <!-- Distance which determines how close the point must be to the RANSAC plane in order to be selected as inlier, default(25mm) -->
+    <arg name="arg_ransac_distance_threshold_mtr" default="0.025"/>
+    <!-- Maximum number of RANSAC iterations which is allowed, default(10) -->
+    <arg name="arg_ransac_max_iterations" default="10"/>
+    <!-- Enables Floor Detection, default(true)-->
+    <arg name="arg_enable_ransac_floor_detection" default="1"/>
+
+    <!-- Parameters related to visualizations -->
+    <!-- Enables Floor paint, default(false)-->
+    <arg name="arg_enable_floor_paint" default="0"/> 
+    <!-- Enables Visualization of safety bubble, default(true)-->
+    <arg name="arg_enable_safety_bubble_zone_visualization" default="1"/>    
+
+    <!-- Parameters related to image compressions -->
+    <!-- enables depth and IR compression-->
+    <arg name="arg_enable_depth_ir_compression" value="0" />
+    <!-- enables output image compression -->
+    <arg name="arg_enable_output_image_compression" value="0" />
+
+    <!-- Parameters related to input image quality
+    For Sensor serial number starting with CR and DV below default values works fine,
+    for sensor serial number starting with AM change the confidence threshold to 25 -->
+    <!-- AB threshold value default(10) -->
+    <arg name="arg_ab_threshold" value="10" />
+    <!-- Confidence threshold value default(10) -->
+    <arg name="arg_confidence_threshold" value="10" />
+
+    <!-- Configuration fie name of ToF SDK
+        "config_crosby_old_modes.json" - Sensor serial number starting with CR/DV
+        "config_crosby_adsd3500_new_modes.json" - Sensor serial number starting with AM
+    -->
+    <arg name="arg_config_file_name_of_tof_sdk" value="config/config_crosby_old_modes.json" />
+    <!-- Frame Type
+        "qmp" - Sensor serial number starting with CR/DV
+        "lr-qnative" - Sensor serial number starting with AM
+    -->
+    <arg name="arg_frame_type" value="qmp" />
+
+
+    <!-- Arguments for virtual camera transformation wrt map when virtual camera looking down(downward Z) 
+         NOTE: These values should not be changed. -->
+    <arg name="virtual_camera_base_frame" default="virtual_camera_frame" />
+    <arg name="vcam_parent_frame" value="map" />
+    <arg name="vcam_pos_x" value="0.0" />
+    <arg name="vcam_pos_y" value="0.0" />
+    <arg name="vcam_pos_z" value="5.0" />
+    <arg name="vcam_roll" value="3.1415927"/>
+    <arg name="vcam_pitch" value="0.0"/>
+    <arg name="vcam_yaw" value="-1.5707"/>
+
+    <!-- Optical Frame: X-Right,Y-Down,Z-Front to Base Frame : X-Front,Y-Left,Z-Up conversion -->
+    <arg name="cam_optical_to_base_roll" value="-1.57"/>
+    <arg name="cam_optical_to_base_pitch" value="0"/>
+    <arg name="cam_optical_to_base_yaw" value="-1.57"/>
+
+    <!-- Parameters for Camera_1 Node -->
+    <arg name="cam_base_frame_optical" default="$(eval arg('ns_prefix_cam') + '_adtf31xx_optical')" />
+    <arg name="cam_parent_frame" value="map"/>
+    <arg name="cam_base_frame" default="$(eval arg('ns_prefix_cam') + '_adtf31xx')" />
+    <arg name="cam_child_frame" value="$(arg cam_base_frame_optical)"/>
+    <arg name="cam_pos_x" value="0"/>
+    <arg name="cam_pos_y" value="0"/>
+    <arg name="cam_pos_z" value="$(arg arg_camera_height_from_ground_in_mtr)"/>
+    <!--Side Tilt: Left side down:-ve  Right side down: +ve -->
+    <arg name="cam_roll" value="0"/>
+	<!-- Vertical Tilt, down +ve radian, up -ve radian -->
+    <!-- Restriction on Pitch, Accepted Range (-1.5708, 1.5708)-->
+    <!--If |Pitch| > 1.57, output from TF transform should be taken as cam_pitch = 3.14 - extracted pitch_angle -->
+    <arg name="cam_pitch" value="0"/>
+    <!--Horizontal Tilt: Left: +ve, Right: -ve -->
+    <arg name="cam_yaw" value="0"/>
+
+
+    <!-- Launch Camera_1 Node -->
+    <group ns="$(arg ns_prefix_cam)">
+      <node name="adi_3dtof_safety_bubble_detector_node" pkg="adi_3dtof_safety_bubble_detector" type="adi_3dtof_safety_bubble_detector_node" output="screen" required="true">
+            <param name="param_camera_link" value="$(arg cam_base_frame)"/>
+            <param name="param_optical_camera_link" value="$(arg cam_base_frame_optical)"/>
+            <param name="param_virtual_camera_link" value="$(arg virtual_camera_base_frame)"/>
+            <param name="param_virtual_camera_height" value="$(arg arg_virtual_camera_height_z_in_mtr)" />
+            <param name="param_safety_zone_radius_in_mtr" value="$(arg arg_safety_bubble_radius_in_mtr)" />
+            <param name="param_safety_bubble_shape" value="$(arg arg_safety_bubble_shape)" />
+			<param name="param_safety_bubble_sensitivity" value="$(arg arg_safety_bubble_detection_sensitivity)" />
+            <param name="param_input_sensor_mode" value="$(arg arg_input_mode)" />
+            <param name="param_output_sensor_mode" value="$(arg arg_output_mode)" />
+            <param name="param_input_file_name_or_ros_topic_prefix_name" value="$(arg arg_input_file_name_or_ros_topic_prefix_name)"/>
+            <param name="param_ransac_distance_threshold_mtr" value="$(arg arg_ransac_distance_threshold_mtr)" />
+            <param name="param_ransac_max_iterations" value="$(arg arg_ransac_max_iterations)" />
+            <param name="param_enable_ransac_floor_detection" value="$(arg arg_enable_ransac_floor_detection)" />
+            <param name="param_enable_floor_paint" value="$(arg arg_enable_floor_paint)" />
+            <param name="param_enable_safety_bubble_zone_visualization" value="$(arg arg_enable_safety_bubble_zone_visualization)" />
+            <param name="param_enable_depth_ir_compression" value="$(arg arg_enable_depth_ir_compression)" />
+            <param name="param_enable_output_image_compression" value="$(arg arg_enable_output_image_compression)" />
+            <param name="param_ab_threshold" value="$(arg arg_ab_threshold)"/>
+            <param name="param_confidence_threshold" value="$(arg arg_confidence_threshold)" />
+            <param name="param_config_file_name_of_tof_sdk" value="$(arg arg_config_file_name_of_tof_sdk)" /> 
+            <param name="param_frame_type" value="$(arg arg_frame_type)"/>       
+        </node>
+
+        <!-- Transform of Camera Optical and Camera Base frame, position is same as camera base, only change in the rotation -->
+        <node pkg="tf2_ros" type="static_transform_publisher" name="$(eval arg('cam_base_frame_optical') + '_tf')" 
+                args="0 0 0 $(arg cam_optical_to_base_yaw) $(arg cam_optical_to_base_pitch) $(arg cam_optical_to_base_roll) $(arg cam_base_frame) $(arg cam_child_frame)" />
+
+        <!-- Transform for Camera Base frame and MAP -->
+        <node pkg="tf2_ros" type="static_transform_publisher" name="$(eval arg('cam_base_frame') + '_tf')" 
+                args="$(arg cam_pos_x) $(arg cam_pos_y) $(arg cam_pos_z) $(arg cam_yaw) $(arg cam_pitch) $(arg cam_roll) $(arg cam_parent_frame) $(arg cam_base_frame)" />
+
+        <!-- Transforms for VCAM and MAP -->
+        <node pkg="tf2_ros" type="static_transform_publisher" name="$(eval arg('virtual_camera_base_frame') + '_tf')" 
+                args="$(arg vcam_pos_x) $(arg vcam_pos_y) $(arg vcam_pos_z) $(arg vcam_yaw) $(arg vcam_pitch) $(arg vcam_roll) $(arg vcam_parent_frame) $(arg virtual_camera_base_frame)" />
+
+        <!--Dynamic Reconfigure-->
+        <node name="adi_3dtof_safety_bubble_detector_dynparam_node" pkg="dynamic_reconfigure" type="dynparam" args="set_from_parameters adi_3dtof_safety_bubble_detector_node">
+        <param name = "safety_bubble_radius_in_mtr" type="double" value="$(arg arg_safety_bubble_radius_in_mtr)" />
+        <param name = "shape_of_safety_bubble" type="int" value="$(arg arg_safety_bubble_shape)" />
+        <param name = "safety_bubble_detection_sensitivity" type="int" value="$(arg arg_safety_bubble_detection_sensitivity)" />
+
+        <param name = "enable_ransac_floor_detection" type="bool" value="$(arg arg_enable_ransac_floor_detection)" />
+        <param name = "enable_floor_paint" type="bool" value="$(arg arg_enable_floor_paint)" />
+        <param name = "enable_safety_bubble_zone_visualization" type="bool" value="$(arg arg_enable_safety_bubble_zone_visualization)" />
+
+        <param name = "ab_threshold" type="int" value="$(arg arg_ab_threshold)" />
+        <param name = "confidence_threshold" type="int" value="$(arg arg_confidence_threshold)" />
+
+        </node>
+
+    </group>
+
+
+</launch>
