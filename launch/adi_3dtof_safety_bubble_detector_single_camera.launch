@@ -54,7 +54,7 @@
     <!-- enables depth and IR compression-->
     <arg name="arg_enable_depth_ir_compression" value="0" />
     <!-- enables output image compression -->
-    <arg name="arg_enable_output_image_compression" value="0" />
+    <arg name="arg_enable_output_image_compression" value="1" />
 
     <!-- Parameters related to input image quality
     For Sensor serial number starting with CR and DV below default values works fine,

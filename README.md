@@ -91,14 +91,14 @@ For details refer to [EVAL-ADTF3175D-NXZ NVM upgrade guide](https://wiki.analog.
 ## Getting Started with the SW package
 
 Assumptions before building this package:
-* Linux System or WSL2(Only Simulation Mode supported) running Ubuntu 20.04LTS
+* Linux System or WSL2(In real time Only single camera can be connected, for multiple cameras only FileIO mode works.) running Ubuntu 20.04LTS
 * To install WSL2 and ROS follow these [steps](https://jackkawell.wordpress.com/2020/06/12/ros-wsl2/) 
 * ROS Noetic: If not installed, follow these [steps](http://wiki.ros.org/noetic/Installation/Ubuntu).
 * Setup catkin workspace (with workspace folder named as "catkin_ws"). If not done, follow these [steps](http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment#:~:text=you%20installed%20ROS.-,Create%20a%20ROS%20Workspace,-catkin).
 
 1. Download and install the latest version of *ADI 3DToF Safety Bubble Detector* from the Release pages.
 
-2. After installing the software, go to the installation folder(~/Analog Devices/ADI3DToFSafetyBubbleDetector/image) and run the get_image.sh script. This script will download the custom Ubuntu 20.04 image for the EVAL-ADTF3175D-NXZ. 
+2. After installing the software, go to the installation folder(~/Analog Devices/ADI3DToFSafetyBubbleDetector-Relx.x.x) and run the get_image.sh script. This script will download the custom Ubuntu 20.04 image for the EVAL-ADTF3175D-NXZ. 
 
 3.	Flash .img file to the SD card, follow steps in this link [EVAL-ADTF3175D-NXZ Users Guide](https://wiki.analog.com/resources/eval/user-guides/eval-adsd3100-nxz/flashing_image_instructions) to flash the .img file to SD card.
     
@@ -156,12 +156,14 @@ Assumptions before building this package:
     ```
 
     >:memo:*Note:*   
-    >If you are using WSL as the Host machine, then setting Host as ROS Master does not work. In this case, you must unset the ROS master on device. 
-    >Run the following command to unset the ROS Master and use the EVAL-ADTF3175D-NXZ as the ROS master. 
+    >If you are using WSL as the Host machine, then setting Host as ROS Master does not work. In this case, you must unset the ROS master on device.
+    >Please note that only *one device* can be connected to WSL. to use *multiple devices*, use Linux machine as host. 
+    >Run the following command to unset the ROS Master and use the EVAL-ADTF3175D-NXZ as the ROS master.
     >On the WSL Host, open an Ubuntu 20.04 Terminal and run the following command
     >```bash
     >$ export ROS_MASTER_URI=http://10.42.0.1:11311
     >$ export ROS_IP=10.42.0.100
+    >$ export ROS_HOSTNAME="Your Device name"
     >```
     >On Device,
     >```bash
@@ -396,7 +398,7 @@ The Node can be run on a Host machine without the need for the actual 3DToF sens
 ## Requirement on file-io input video files
 To run the *adi_3dtof_safety_bubble_detector_node* in file-io mode, the video files should be given as input.
 Please follow the below instructions to set up the input video files.
-1. Go to the installation directory of the *ADI 3DToF ADTF31xx* appliation (~/Analog Devices/ADI3DToFADTF31xx-Rel1.0.0/videos)
+1. After installing the software, go to the installation folder (~/Analog Devices/ADI3DToFSafetyBubbleDetector-Relx.x.x)
 2. Run the *get_videos.sh* script which will download the *adi_3dtof_input_video_files.zip* file in the current directory.
 3. Unzip it and copy the directory as *~/catkin_ws/src/adi_3dtof_input_video_files*.
 4. Update the input file argument *arg_input_file_name_or_ros_topic_prefix_name* in the launch file *adi_3dtof_safety_bubble_detector_single_camera.launch* as per the above file path.
