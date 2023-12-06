@@ -1,27 +1,27 @@
 # Analog Devices 3DToF Safety Bubble Detector
 
 ## Overview
-The **ADI 3DToF Safety Bubble Detector** is a ROS (Robot Operating System) package for the Safety Bubble Detection application. The Safety Bubble Detectors are the basic building block of any AGV/AMR. 
+The **ADI 3DToF Safety Bubble Detector** is a ROS(Robot Operating System) package for the Safety Bubble Detection application. The Safety Bubble Detectors are the basic building block of any AGV/AMR. 
 The safety zone is a virtual area around an AGV/AMR. The Safety Bubble Detectors are used to detect the 
 presence of any object inside this zone and prevent the AGV/AMR from colliding on to the object.
 
 The **ADI 3DToF Safety Bubble Detector** is developed as a ROS application running on the ADI’s *EVAL-ADTF3175D-NXZ* Time-of-Flight platform. The Safety Bubble Detection algorithm is highly optimized 
 to run at 30FPS on the *EVAL-ADTF3175D-NXZ* platform.
 The node uses [*ADI ToF SDK*](https://github.com/analogdevicesinc/ToF/) APIs to capture the frames from the sensor. The algorithm is run on the captured images and the output is published as ROS topics.
-The Node publishes the detection flag and the output visualization image as the topics. The Depth and IR images are also published as ROS topics. The topics are published at 30FPS. The default topic names are listed below.
+The Node publishes the detection flag and the output visualization image as the topics. The Depth and IR images are also published as ROS topics. The topics are published at 30FPS.
 
 <div style="text-align:center"><img src="./docs/images/adi_3dtof_safety_bubble_detector.png" alt="Connection Diagram"/></div>
 
 ![arch_diagram](docs/images/architecture_diagram.png)
 
-[![Noetic](https://img.shields.io/badge/-NOETIC-green?style=plastic&logo=ros)](http://wiki.ros.org/noetic) [![Ubuntu 20.04](https://img.shields.io/badge/-UBUNTU%2020.04-orange?style=plastic&logo=ubuntu&logoColor=white)](https://releases.ubuntu.com/focal/) [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](LICENSE) ![ARM64](https://img.shields.io/badge/arm64-blue?style=plastic&logo=arm&logoColor=white) ![x86_64](https://img.shields.io/badge/x86__64-blue?style=plastic&logo=intel&logoColor=white) 
+[![Humble](https://img.shields.io/badge/-Humble-green?style=plastic&logo=ros)](https://docs.ros.org/en/humble/index.html) [![Ubuntu 20.04](https://img.shields.io/badge/-UBUNTU%2020.04-orange?style=plastic&logo=ubuntu&logoColor=white)](https://releases.ubuntu.com/focal/) [![Ubuntu 22.04](https://img.shields.io/badge/-UBUNTU%2022.04-orange?style=plastic&logo=ubuntu&logoColor=white)](https://releases.ubuntu.com/jammy/) [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](LICENSE) ![ARM64](https://img.shields.io/badge/arm64-blue?style=plastic&logo=arm&logoColor=white) ![x86_64](https://img.shields.io/badge/x86__64-blue?style=plastic&logo=intel&logoColor=white) 
 
 ---
 # Hardware
 
 - [EVAL-ADTF3175D-NXZ Module](https://www.analog.com/en/design-center/evaluation-hardware-and-software/evaluation-boards-kits/EVAL-ADTF3175.html#eb-overview)
 - USB Type-C to Type-A cable - with 5gbps data speed support
-- Host laptop with intel i5 or higher cpu running Ubuntu-20.04LTS
+- Host laptop with intel i5 or higher cpu running Ubuntu-20.04LTS or Ubuntu-22.04LTS
 
  :memo: _Note_: Refer the [EVAL-ADTF3175D-NXZ User Guide](https://wiki.analog.com/resources/eval/user-guides/eval-adtf3175d-nxz) to ensure the Eval module has adequate power supply during operation.
 
@@ -88,21 +88,21 @@ For details refer to [EVAL-ADTF3175D-NXZ NVM upgrade guide](https://wiki.analog.
   
 ---
 
-## Getting Started with the SW package
+# Software
 
-Assumptions before building this package:
-* Linux System or WSL2(Only Simulation Mode supported) running Ubuntu 20.04LTS
-* To install WSL2 and ROS follow these [steps](https://jackkawell.wordpress.com/2020/06/12/ros-wsl2/) 
-* ROS Noetic: If not installed, follow these [steps](http://wiki.ros.org/noetic/Installation/Ubuntu).
-* Setup catkin workspace (with workspace folder named as "catkin_ws"). If not done, follow these [steps](http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment#:~:text=you%20installed%20ROS.-,Create%20a%20ROS%20Workspace,-catkin).
+Pre-requisites for using this package:
+* Linux System or WSL2(Only FileIO mode works.) running Ubuntu 20.04LTS or Ubuntu 22.04LTS
+* Install WSL2 using these [steps](https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-10#7-enjoy-ubuntu-on-wsl) 
+* ROS2 Humble: If not installed, follow these [steps](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html).
+* Setup ros2 workspace (with workspace folder named as "ros2_ws"). If not done, follow these [steps](https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Creating-A-Workspace/Creating-A-Workspace.html).
 
 1. Download and install the latest version of *ADI 3DToF Safety Bubble Detector* from the Release pages.
 
-2. After installing the software, go to the installation folder(~/Analog Devices/ADI3DToFSafetyBubbleDetector/image) and run the get_image.sh script. This script will download the custom Ubuntu 20.04 image for the EVAL-ADTF3175D-NXZ. 
+2. After installing the software, go to the installation folder(~/Analog Devices/ADI3DToFSafetyBubbleDetector-Relx.x.x) and run the get_image.sh script. This script will download the custom Ubuntu 20.04 image for the EVAL-ADTF3175D-NXZ. 
 
 3.	Flash .img file to the SD card, follow steps in this link [EVAL-ADTF3175D-NXZ Users Guide](https://wiki.analog.com/resources/eval/user-guides/eval-adsd3100-nxz/flashing_image_instructions) to flash the .img file to SD card.
     
-    *Note*: This image contains the necessary software and code to start using the ROS node. The source code for the ```adi_3dtof_safety_bubble_detector``` can be found in ```/home/analog/catkin_ws/src/```
+    *Note*: This image contains the necessary software and code to start using the ROS node. The source code for the ```adi_3dtof_safety_bubble_detector``` can be found in ```/home/analog/ros2_ws/src/```
 
 4.	Follow the instructions below to run the *adi_3dtof_safety_bubble_detector* application on the EVAL-ADTF3175D-NXZ module.
 
@@ -115,7 +115,7 @@ Assumptions before building this package:
       Password: analog   
     ```
 
-    *Note*: If you do not have a Linux Host machine, then install Windows Subsystem for Linux(WSL) and Ubuntu 20.04 on Windows. 
+    *Note*: If you do not have a Linux Host machine, then install Windows Subsystem for Linux(WSL) and Ubuntu 22.04 on Windows. 
     Refer to this [link](https://learn.microsoft.com/en-us/windows/wsl/install) for instructions.
 
 
@@ -129,69 +129,51 @@ Assumptions before building this package:
 >You can either setup a network with the above properties or configure the Device to connect to any available network.  
 >Alternatively, the Host machine can be setup as a local NTP server and the devices can be configured to update Date/Time using the Host machine.  
 >Refer to below links for setting and configuring NTP on Ubuntu machines.
->-  https://ubuntuforums.org/showthread.php?t=862620  
->-  https://timetoolsltd.com/ntp/how-to-install-and-configure-ntp-on-linux/  
 >-  https://askubuntu.com/questions/14558/how-do-i-setup-a-local-ntp-server
+>- https://vitux.com/how-to-install-ntp-server-and-client-on-ubuntu/
 
-> 2. The ROS Noetic and dependent packages are already installed in the EVAL-ADTF3175D-NXZ image and the source code for the *adi_3dtof_safety_bubble_detector* is present in `/home/analog/catkin_ws/src/` folder. The package is also pre-built, hence there is no need to build the package.  
->    If the source files are modified, then use the following commands to build the package.  
+> 2. The ROS Humble and dependent packages are already installed in the EVAL-ADTF3175D-NXZ image and the source code for the *adi_3dtof_safety_bubble_detector* is present in `/home/analog/ros2_ws/src/` folder. The package is also pre-built, hence there is no need to build the package.  
+>    If the source files are modified, then use the following commands to build the package.
+>    copy the tof libraries from ~/Workspace/ToF/build/sdk/ to adi_3dtof_adtf31xx/libs/ use the below command
 >>```bash
->> $ cd ~/catkin_ws/  
->> $ catkin_make -DCMAKE_BUILD_TYPE=RELEASE -j2  
+>> $ cp ~/Workspace/ToF/build/sdk/libaditof.so* ~/ros2_ws/src/adi_3dtof_safety_bubble_detector/libs/ 
 >>```
->
->    Note: `/home/analog/catkin_ws/` is set up as the catkin workspace and this workspace is already sourced in the `~/.bashrc`
+
+>>```bash
+>> $ cd ~/ros2_ws/  
+>> $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1  
+>>```
+>    Note: `/home/analog/ros2_ws/` is set up as the ros2 workspace and this workspace is already sourced in the `~/.bashrc`
 
 7.	Running the ROS Node:
 
-    On the EVAL-ADTF3175D-NXZ device, the ROS Master is set to the IP address of the Host machine, hence it is required to run `roscore` on the Host machine (*applicable only to Linux host*).
-
-    On the Linux Host, open a terminal and run the following command
-    ```bash
-    $ roscore
-    ```
     On the Device:
     ```bash
-    $ roslaunch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera.launch
+    $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera_launch.py
     ```
-
-    >:memo:*Note:*   
-    >If you are using WSL as the Host machine, then setting Host as ROS Master does not work. In this case, you must unset the ROS master on device. 
-    >Run the following command to unset the ROS Master and use the EVAL-ADTF3175D-NXZ as the ROS master. 
-    >On the WSL Host, open an Ubuntu 20.04 Terminal and run the following command
-    >```bash
-    >$ export ROS_MASTER_URI=http://10.42.0.1:11311
-    >$ export ROS_IP=10.42.0.100
-    >```
-    >On Device,
-    >```bash
-    >$ unset ROS_MASTER_URI
-    >$ roslaunch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera.launch
-    >```
-
     At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start publishing the topics ```/cam1/depth_image, /cam1/ir_image, /cam1/out_image, /cam1/obect_detected and /cam1/camera_info```.
 
-    To see the depth and IR images on the Host machine, simply open the RVIZ and add ```/cam1/depth_image```, ```/cam1/ir_image``` and ```/cam1/out_image``` topics to visualize the images
+    To see the depth and IR images on the Host machine, simply open the RViz by typing command ```$rviz2``` and add ```/cam1/depth_image```, ```/cam1/ir_image``` and ```/cam1/out_image``` topics to visualize the images
 
 8.  Publishing compressed output image
 
     This feature enables multiple sensors to run in 30FPS.
 
-    change the below parameter in ```adi_3dtof_safety_bubble_detector_single_camera.launch``` file.
+    change the below parameter in ```adi_3dtof_safety_bubble_detector_single_camera_launch.py``` file.
     
-    *arg_enable_output_image_compression* set it to 1
+    *arg_enable_output_image_compression* set it to "true"
 
     On the Device:
     ```bash
-    $ roslaunch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera.launch
+    $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera_launch.py
     ```
 
     On host:
     ```bash
-    $ roslaunch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera_host.launch
+    $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_host_multiple_cameras_launch.py
     ```
-    *Note:* The camera prefix with device is publishing output image should match with ```ns_prefix_cam``` argument present in ```adi_3dtof_safety_bubble_detector_single_camera_host``` launch file.
 
+    *Note:* The file ```adi_3dtof_safety_bubble_detector_host_multiple_cameras_launch.py``` subscribes to the output images and combines them to give the top view. All of the camera prefixes (such as cam1, cam2) that the program wants to combine to create a top view should be in the ```arg_camera_prefixes``` argument.
 
 ---
 ## Output Images
@@ -247,7 +229,7 @@ If RVL image-compression is enabled:
 + **/ir_image/compressedDepth** 
     - 512X512 16-bit IR image from adi_3dtof_safety_bubble_detector node compressed with RVL compression 
 + **/out_image/compressed** 
-    - 512X512 8-bit output image from adi_3dtof_safety_bubble_detector node compressed with RVL compression 
+    - 512X512 8-bit output image from adi_3dtof_safety_bubble_detector node compressed with JPEG compression 
 
 ### Parameters
 
@@ -280,22 +262,22 @@ If RVL image-compression is enabled:
     - If input mode is 2 this parameter represents input file name
     - If input mode is 3 this parameter represents the prefix of ros topics. 
 
-+ **param_enable_ransac_floor_detection** (int, default: 1)
++ **param_enable_ransac_floor_detection** (int, default: true)
     - enable option for ransac floor detection, _0: disable, 1:enable_
 
-+ **param_enable_depth_ir_compression** (int, default: 0)
++ **param_enable_depth_ir_compression** (int, default: false)
     - enable option to publish depth and ir compressed images, _0: disable, 1:enable_
 
-+ **param_enable_output_image_compression** (int, default: 0)
++ **param_enable_output_image_compression** (int, default: false)
     - enable option to publish compressed output image, _0: disable, 1:enable_
 
 + **param_safety_bubble_sensitivity** (int, default: 10)
     - number of connected pixels to trigger object detection
 
-+ **param_enable_floor_paint** (int, default: 0)
++ **param_enable_floor_paint** (int, default: false)
     - enable option to visualize for floor paint, _0: disable, 1:enable_
 
-+ **param_enable_safety_bubble_zone_visualization** (int, default: 0)
++ **param_enable_safety_bubble_zone_visualization** (int, default: false)
     - enable option to visualize safety bubble zone, _0: disable, 1:enable_
 
 + **param_input_image_width** (int, default: 1024)
@@ -320,7 +302,7 @@ If RVL image-compression is enabled:
     - confidenceThreshold for the sensor.
     - For Sensor serial number CR and DV default value is 10, for Sensor serial number AM default value is 25.
 
-+ **param_enable_depth_ir_compression** (int, default: 0)
++ **param_enable_depth_ir_compression** (int, default: false)
     - Enables RVL compression for the depth images 
     
 + **param_config_file_name_of_tof_sdk** (String, default: "config/config_crosby_old_modes.json")
@@ -353,7 +335,7 @@ If RVL image-compression is enabled:
 
 ### Parameters
 
-+ **camera_prefix** (String, default: "no name")
++ **param_camera_prefixes** (String, default: "no name")
     - ROS Topic prefix name to subscribe
 
 > :memo: _Notes:_ 
@@ -368,7 +350,7 @@ Using Dynamic Reconfigure some parameters of *adi_3dtof_safety_bubble_detector* 
 <div style="text-align:center"><img src="./docs/images/adi_3dtof_safety_bubble_detector_rqt.png" alt="Dynamic Reconfigure"/></div>  
 The GUI can be started by running the following command.
 
-``` roslaunch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_rqt.launch ```  
+``` ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_rqt_launch.py ```  
 
 Make sure the *adi_3dtof_safety_bubble_detector* is already running before executing this command.
 
@@ -389,37 +371,37 @@ Any other inquiries are also welcome.
 ---
 # Appendix 1:
 # Steps to run the Node on a Host machine in File-IO mode
-The Node can be run on a Host machine without the need for the actual 3DToF sensor. This mode is supported for users who would want to test some algorithms on the recorded video files. In this mode the *adi_3dtof_safety_bubble_detector_node* will read the video file and publish the frames as ROS topics. Follow the below instructions to build and run the node in File-IO mode.
+The Node can be run on a Host machine without the need for the actual 3DToF sensor. This mode is supported for users who would want to test algorithm and to tune algorithm parameters on the recorded video files. In this mode the *adi_3dtof_safety_bubble_detector_node* will read the video file and publish the frames as ROS topics. Follow the below instructions to build and run the node in File-IO mode.
 
-*Note:* It is assumed that the correct version of ROS is installed and configured properly, if not please install the ROS from [here](http://wiki.ros.org/noetic/Installation/Ubuntu) 
+*Note:* It is assumed that the correct version of ROS is installed and configured properly, if not please install the ROS from [here](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html) 
 
 ## Requirement on file-io input video files
 To run the *adi_3dtof_safety_bubble_detector_node* in file-io mode, the video files should be given as input.
 Please follow the below instructions to set up the input video files.
-1. Go to the installation directory of the *ADI 3DToF ADTF31xx* appliation (~/Analog Devices/ADI3DToFADTF31xx-Rel1.0.0/videos)
+1. After installing the software, go to the installation folder (~/Analog Devices/ADI3DToFSafetyBubbleDetector-Relx.x.x)
 2. Run the *get_videos.sh* script which will download the *adi_3dtof_input_video_files.zip* file in the current directory.
-3. Unzip it and copy the directory as *~/catkin_ws/src/adi_3dtof_input_video_files*.
-4. Update the input file argument *arg_input_file_name_or_ros_topic_prefix_name* in the launch file *adi_3dtof_safety_bubble_detector_single_camera.launch* as per the above file path.
+3. Unzip it and copy the directory as *~/ros2_ws/src/adi_3dtof_input_video_files*.
+4. Update the input file argument *arg_input_file_name_or_ros_topic_prefix_name* in the launch file *adi_3dtof_safety_bubble_detector_single_camera_launch.py* as per the above file path.
 
 ## Steps to run *adi_3dtof_safety_bubble_detector_node* node
 
 1. Clone the repo and checkout the corect release branch/
-tag into catkin workspace directory
+tag into ros workspace directory
 
     ```bash
-    $ cd ~/catkin_ws/src
-    $ git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v1.0.0
+    $ cd ~/ros2_ws/src
+    $ git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.0.0
     ```
 2. Install dependencies:
     ```bash
-    $ cd ~/catkin_ws/
+    $ cd ~/ros2_ws/
     $ rosdep install --from-paths src -y --ignore-src    
     ```
 3. Build the package
     ```bash
-    $ cd ~/catkin_ws/src
-    $ catkin_make -DCMAKE_BUILD_TYPE=RELEASE -DHOST_BUILD=TRUE -j2
-    $ source devel/setup.bash
+    $ cd ~/ros2_ws
+    $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DHOST_BUILD=TRUE
+    $ source install/setup.bash
     ```
 4. To run the *adi_3dtof_safety_bubble_detector_node* in File-IO mode, we need to make some changes in the launch file. Change the following parameters in launch file.
 
@@ -427,14 +409,14 @@ tag into catkin workspace directory
     
     *arg_input_file_name_or_ros_topic_prefix_name* to be set to the input file name
 
-5. After updating the launch file, run the roslaunch with the updated launch file.
+5. After updating the launch file, run the ros2 launch with the updated launch file.
     ```bash
-    $ roslaunch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera.launch
+    $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera_launch.py
     ```
 
 At this stage, the *adi_3dtof_safety_bubble_detector_node* will be launched and start publishing the topics ```/cam1/depth_image, /cam1/ir_image, /cam1/out_image, /cam1/camera_info and /cam1/object_detected```.
 
-To see the depth and IR images open an other Terminal and open the RVIZ and add ```/cam1/depth_image```, ```/cam1/ir_image``` and ```/cam1/out_image``` topics to visualize the images
+To see the depth and IR images open other Terminal and open the RViz by typing command ```$rviz2``` and add ```/cam1/depth_image```, ```/cam1/ir_image``` and ```/cam1/out_image``` topics to visualize the images
     
 
 For details on the parameters please refer to the launch files present in the ```launch/``` folder.

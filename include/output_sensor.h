@@ -7,8 +7,8 @@ and its licensors.
 #ifndef OUTPUT_SENSOR_H
 #define OUTPUT_SENSOR_H
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 /*Video Write*/
 #include <opencv2/core/core.hpp>
@@ -20,8 +20,7 @@ and its licensors.
  *
  */
 
-enum OutputFlag
-{
+enum OutputFlag {
   /**
    * @brief 0: No outputs are saved into files
    *
@@ -51,10 +50,13 @@ enum OutputFlag
 class OOutputSensor
 {
 public:
-  virtual void open(std::string input_file_name, int image_width, int image_height, OutputFlag output_flag) = 0;
-  virtual void write(int frame_number, bool object_detected, unsigned short* depth_frame_16bpp,
-                     const cv::Mat& out_visualization_image, int image_width, int image_height,
-                     bool floor_detection_status, int ransac_iterations, int noise_count, float ransac_time_ms_out) = 0;
+  virtual void open(
+    std::string input_file_name, int image_width, int image_height, OutputFlag output_flag) = 0;
+  virtual void write(
+    int frame_number, bool object_detected, unsigned short * depth_frame_16bpp,
+    const cv::Mat & out_visualization_image, int image_width, int image_height,
+    bool floor_detection_status, int ransac_iterations, int noise_count,
+    float ransac_time_ms_out) = 0;
   virtual void close() = 0;
 };
 

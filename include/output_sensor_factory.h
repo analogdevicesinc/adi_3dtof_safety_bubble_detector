@@ -7,8 +7,8 @@ and its licensors.
 #ifndef OUTPUT_SENSOR_FACTORY_H
 #define OUTPUT_SENSOR_FACTORY_H
 
-#include "output_sensor_file.h"
 #include "output_sensor.h"
+#include "output_sensor_file.h"
 
 /**
  * @brief This is output sensor factory class
@@ -23,10 +23,9 @@ public:
    * @param output_sensor_type
    * @return OOutputSensor*
    */
-  static OOutputSensor* getOutputSensor(int output_sensor_type)
+  static OOutputSensor * getOutputSensor(int output_sensor_type)
   {
-    switch (output_sensor_type)
-    {
+    switch (output_sensor_type) {
       case 0:
         return nullptr;
       case 1:
@@ -34,11 +33,11 @@ public:
         return new OutputSensorFile;
       case 2:
         // ROS Bag
-        ROS_INFO_STREAM("ROSBAG support TBD.");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"), "ROSBAG support TBD.");
         return nullptr;
         break;
       default:
-        ROS_INFO_STREAM("Not a valid senor type.");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"), "Not a valid senor type.");
         return nullptr;
     }
   }
