@@ -134,7 +134,7 @@ Pre-requisites for using this package:
 
 > 2. The ROS Humble and dependent packages are already installed in the EVAL-ADTF3175D-NXZ image and the source code for the *adi_3dtof_safety_bubble_detector* is present in `/home/analog/ros2_ws/src/` folder. The package is also pre-built, hence there is no need to build the package.  
 >    If the source files are modified, then use the following commands to build the package.
->    copy the tof libraries from ~/Workspace/ToF/build/sdk/ to adi_3dtof_adtf31xx/libs/ use the below command
+>    copy the tof libraries from ~/Workspace/ToF/build/sdk/ to adi_3dtof_safety_bubble_detector/libs/ use the below command
 >>```bash
 >> $ cp ~/Workspace/ToF/build/sdk/libaditof.so* ~/ros2_ws/src/adi_3dtof_safety_bubble_detector/libs/ 
 >>```
@@ -143,7 +143,20 @@ Pre-requisites for using this package:
 >> $ cd ~/ros2_ws/  
 >> $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1  
 >>```
->    Note: `/home/analog/ros2_ws/` is set up as the ros2 workspace and this workspace is already sourced in the `~/.bashrc`
+>    Note: `/home/analog/ros2_ws/` is set up as the ros2 workspace and this workspace is already sourced in the `~/.bashrc`.
+
+>  **:warning: <span style="color:red">If the above command is stuck in the console then execute below commands**</span> 
+>>```bash
+>> $ cd ~/ros2_ws/build/adi_3dtof_safety_bubble_detector 
+>> $ make -j1
+>>```
+    once the build is successful, run the below commands so that symlinks gets installed in the proper paths.
+>>```bash
+>> $ cd ~/ros2_ws/
+>> $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+>> $ source install/setup.bash
+>>```
+     
 
 7.	Running the ROS Node:
 

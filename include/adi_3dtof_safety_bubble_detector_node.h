@@ -180,7 +180,7 @@ public:
     // Safety zone radius
     rcl_interfaces::msg::ParameterDescriptor safety_zone_radius_descriptor{};
     rcl_interfaces::msg::FloatingPointRange safety_zone_radius_range;
-    safety_zone_radius_range.set__from_value(0.1).set__to_value(3).set__step(0.1);
+    safety_zone_radius_range.set__from_value(0.1).set__to_value(3);
     safety_zone_radius_descriptor.floating_point_range = {safety_zone_radius_range};
     safety_zone_radius_descriptor.description = "Safety bubble radius in meters";
     this->declare_parameter<float>(
@@ -202,7 +202,7 @@ public:
     // number of connected pixels to trigger object detection
     rcl_interfaces::msg::ParameterDescriptor safety_bubble_sensitivity_descriptor{};
     rcl_interfaces::msg::IntegerRange safety_bubble_sensitivity_range;
-    safety_bubble_sensitivity_range.set__from_value(1).set__to_value(50).set__step(1);
+    safety_bubble_sensitivity_range.set__from_value(1).set__to_value(50);
     safety_bubble_sensitivity_descriptor.integer_range = {safety_bubble_sensitivity_range};
     safety_bubble_sensitivity_descriptor.description =
       "total number of connected pixels in an image to detect as a object";
@@ -227,7 +227,7 @@ public:
     // ab threshold to be set to device
     rcl_interfaces::msg::ParameterDescriptor ab_threshold_descriptor{};
     rcl_interfaces::msg::IntegerRange ab_threshold_range;
-    ab_threshold_range.set__from_value(1).set__to_value(255).set__step(1);
+    ab_threshold_range.set__from_value(1).set__to_value(255);
     ab_threshold_descriptor.integer_range = {ab_threshold_range};
     ab_threshold_descriptor.description = "Set ab threshold value to device";
     this->declare_parameter<int>("param_ab_threshold", 10, ab_threshold_descriptor);
@@ -235,7 +235,7 @@ public:
     // confidence threshold to be set to device
     rcl_interfaces::msg::ParameterDescriptor confidence_threshold_descriptor{};
     rcl_interfaces::msg::IntegerRange confidence_threshold_range;
-    confidence_threshold_range.set__from_value(1).set__to_value(255).set__step(1);
+    confidence_threshold_range.set__from_value(1).set__to_value(255);
     confidence_threshold_descriptor.integer_range = {confidence_threshold_range};
     confidence_threshold_descriptor.description = "Set confidence threshold value to device";
     this->declare_parameter<int>("param_confidence_threshold", 10, confidence_threshold_descriptor);
