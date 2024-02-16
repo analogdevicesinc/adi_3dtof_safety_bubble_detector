@@ -35,7 +35,7 @@ and its licensors.
 
 using namespace std::chrono_literals;
 namespace enc = sensor_msgs::image_encodings;
-#define MAX_QUEUE_SIZE_FOR_TIME_SYNC 2
+#define MAX_QUEUE_SIZE_FOR_TIME_SYNC 5
 
 /**
  * @brief This is main class for the Stitch node

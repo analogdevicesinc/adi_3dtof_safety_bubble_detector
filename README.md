@@ -344,6 +344,9 @@ If RVL image-compression is enabled:
     - boolean topic indictes object detection
 
 + **/out_image/compressed**
+    - subscribes compressed output image from adi_3dtof_safety_bubble_detector node
+
++ **/out_image**
     - subscribes output image from adi_3dtof_safety_bubble_detector node
 
 ### Parameters
