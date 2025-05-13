@@ -27,20 +27,20 @@ class InputSensorRosTopic : public IInputSensor
 {
 public:
   void openSensor(
-    std::string sensor_name, int input_image_width, int input_image_height, int processing_scale,
-    std::string config_file_name);
-  void configureSensor(std::string frame_type);
+    std::string sensor_name, int input_image_width, int input_image_height,
+    std::string config_file_name, std::string input_sensor_ip);
+  void configureSensor(int camera_mode);
   void getIntrinsics(CameraIntrinsics * camera_intrinsics);
   void getExtrinsics(CameraExtrinsics * camera_extrinsics);
-  bool readNextFrame(unsigned short * depth_frame, unsigned short * ir_frame);
+  bool readNextFrame(unsigned short * depth_frame, unsigned short * ab_frame);
   bool getFrameTimestamp(rclcpp::Time * timestamp);
   void closeSensor();
   void syncDepthandIr(
     const sensor_msgs::msg::Image::ConstSharedPtr & depth_image_cam,
-    const sensor_msgs::msg::Image::ConstSharedPtr & ir_image_cam);
+    const sensor_msgs::msg::Image::ConstSharedPtr & ab_image_cam);
   void camInfoCallback(const sensor_msgs::msg::CameraInfo::ConstSharedPtr & cam_info);
 
-  void IrCallback(const sensor_msgs::msg::Image::ConstSharedPtr & ir_image);
+  void IrCallback(const sensor_msgs::msg::Image::ConstSharedPtr & ab_image);
   void DepthCallback(const sensor_msgs::msg::Image::ConstSharedPtr & depth_image);
 
   /**
@@ -70,19 +70,19 @@ private:
   // Subscribe to camera-info, depth, ir and point-cloud topics
   std::string camera_info_topic_name;
   std::string depth_image_topic_name;
-  std::string ir_image_topic_name;
+  std::string ab_image_topic_name;
   std::mutex ros_topics_input_thread_mtx_;
   bool camera_parameters_updated_ = false;
   CameraIntrinsics camera_intrinsics_;
   rclcpp::Time frame_timestamp_;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_subscriber_;
   message_filters::Subscriber<sensor_msgs::msg::Image> depth_image_subscriber_;
-  message_filters::Subscriber<sensor_msgs::msg::Image> ir_image_subscriber_;
+  message_filters::Subscriber<sensor_msgs::msg::Image> ab_image_subscriber_;
   typedef message_filters::sync_policies::ApproximateTime<
     sensor_msgs::msg::Image, sensor_msgs::msg::Image>
-    sync_policy_depth_ir_image;
-  typedef message_filters::Synchronizer<sync_policy_depth_ir_image> depth_ir_image_synchronizer;
-  std::shared_ptr<depth_ir_image_synchronizer> depth_ir_image_sync_ptr_;
+    sync_policy_depth_ab_image;
+  typedef message_filters::Synchronizer<sync_policy_depth_ab_image> depth_ab_image_synchronizer;
+  std::shared_ptr<depth_ab_image_synchronizer> depth_ab_image_sync_ptr_;
   rclcpp::Node::SharedPtr private_node_handle_;
 };
 

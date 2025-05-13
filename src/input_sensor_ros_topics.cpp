@@ -26,12 +26,11 @@ and its licensors.
  * @param cam_prefix camera prefix name of the input ros topics.
  * @param input_image_width image width
  * @param input_image_height image height
- * @param processing_scale scale factor is not used as the device is not the chosen input mode
  * @param config_file_name config file name of ToF SDK is not used as the device is not input mode.
  */
 void InputSensorRosTopic::openSensor(
-  std::string cam_prefix, int input_image_width, int input_image_height, int /* processing_scale */,
-  std::string /*config_file_name*/)
+  std::string cam_prefix, int input_image_width, int input_image_height,
+  std::string /*config_file_name*/, std::string input_sensor_ip)
 {
   private_node_handle_ = std::make_shared<rclcpp::Node>("input_sensor_ros_topic");
   frame_counter_ = 0;
@@ -46,19 +45,19 @@ void InputSensorRosTopic::openSensor(
   // Subscribe to camera-info, depth, ir and point-cloud topics
   camera_info_topic_name = "/" + cam_prefix + "/camera_info";
   depth_image_topic_name = "/" + cam_prefix + "/depth_image";
-  ir_image_topic_name = "/" + cam_prefix + "/ir_image";
+  ab_image_topic_name = "/" + cam_prefix + "/ab_image";
 
   depth_image_subscriber_.subscribe(private_node_handle_, depth_image_topic_name);
-  ir_image_subscriber_.subscribe(private_node_handle_, ir_image_topic_name);
+  ab_image_subscriber_.subscribe(private_node_handle_, ab_image_topic_name);
   camera_info_subscriber_ = private_node_handle_->create_subscription<sensor_msgs::msg::CameraInfo>(
     camera_info_topic_name, 1,
     std::bind(&InputSensorRosTopic::camInfoCallback, this, std::placeholders::_1));
 
   // We need to sync the depth and ir topics
-  depth_ir_image_sync_ptr_.reset(new depth_ir_image_synchronizer(
-    sync_policy_depth_ir_image(MAX_QUEUE_SIZE_FOR_TIME_SYNC), depth_image_subscriber_,
-    ir_image_subscriber_));
-  depth_ir_image_sync_ptr_->registerCallback(std::bind(
+  depth_ab_image_sync_ptr_.reset(new depth_ab_image_synchronizer(
+    sync_policy_depth_ab_image(MAX_QUEUE_SIZE_FOR_TIME_SYNC), depth_image_subscriber_,
+    ab_image_subscriber_));
+  depth_ab_image_sync_ptr_->registerCallback(std::bind(
     &InputSensorRosTopic::syncDepthandIr, this, std::placeholders::_1, std::placeholders::_2));
 
   // Update flag.
@@ -108,11 +107,11 @@ void InputSensorRosTopic::camInfoCallback(
  * @brief synchronizes depth and IR images
  *
  * @param depth_image depth image pointer
- * @param ir_image ir image pointer
+ * @param ab_image ir image pointer
  */
 void InputSensorRosTopic::syncDepthandIr(
   const sensor_msgs::msg::Image::ConstSharedPtr & depth_image,
-  const sensor_msgs::msg::Image::ConstSharedPtr & ir_image)
+  const sensor_msgs::msg::Image::ConstSharedPtr & ab_image)
 {
   // Copy the buffers into the queue
   int image_width = depth_image->width;
@@ -125,9 +124,9 @@ void InputSensorRosTopic::syncDepthandIr(
     return;
   }
 
-  int ir_image_width = ir_image->width;
-  int ir_image_height = ir_image->height;
-  if ((ir_image_width != frame_width_) && (ir_image_height != frame_height_)) {
+  int ab_image_width = ab_image->width;
+  int ab_image_height = ab_image->height;
+  if ((ab_image_width != frame_width_) && (ab_image_height != frame_height_)) {
     return;
   }
 
@@ -136,7 +135,7 @@ void InputSensorRosTopic::syncDepthandIr(
 
   // copy depth image
   memcpy(frame_info_node->depth_image_, &depth_image->data[0], image_width * image_height * 2);
-  memcpy(frame_info_node->ir_image_, &ir_image->data[0], image_width * image_height * 2);
+  memcpy(frame_info_node->ab_image_, &ab_image->data[0], image_width * image_height * 2);
 
   // Extracting timestamp
   frame_info_node->frame_timestamp_ = depth_image->header.stamp;
@@ -152,7 +151,7 @@ void InputSensorRosTopic::syncDepthandIr(
  *
  * @param frame_type frame type, not used in file-io mode
  */
-void InputSensorRosTopic::configureSensor(std::string /*frame_type*/)
+void InputSensorRosTopic::configureSensor(int /*camera_mode*/)
 {
   total_frames_ = 0;
   if (sensor_open_flag_) {
@@ -205,14 +204,14 @@ void InputSensorRosTopic::getExtrinsics(CameraExtrinsics * camera_extrinsics)
  * @brief reads next frame
  *
  * @param depth_frame pointer to read depth frame
- * @param ir_frame pointer to read ir frame
+ * @param ab_frame pointer to read ir frame
  * @return true if reading next frame is successful.
  * @return false if reading next frame is failure.
  */
-bool InputSensorRosTopic::readNextFrame(unsigned short * depth_frame, unsigned short * ir_frame)
+bool InputSensorRosTopic::readNextFrame(unsigned short * depth_frame, unsigned short * ab_frame)
 {
   assert(depth_frame != nullptr);
-  assert(ir_frame != nullptr);
+  assert(ab_frame != nullptr);
 
   // Read the next node from queue and copy
   ros_topics_input_thread_mtx_.lock();
@@ -243,8 +242,8 @@ bool InputSensorRosTopic::readNextFrame(unsigned short * depth_frame, unsigned s
       depth_frame, new_frame->depth_image_,
       sizeof(new_frame->depth_image_[0]) * frame_width_ * frame_height_);
     memcpy(
-      ir_frame, new_frame->ir_image_,
-      sizeof(new_frame->ir_image_[0]) * frame_width_ * frame_height_);
+      ab_frame, new_frame->ab_image_,
+      sizeof(new_frame->ab_image_[0]) * frame_width_ * frame_height_);
     // Extract timestamp
     frame_timestamp_ = new_frame->frame_timestamp_;
     // remove the node from queue

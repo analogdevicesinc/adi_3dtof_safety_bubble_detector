@@ -28,6 +28,8 @@ find_package(tf2_eigen REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system)
 
+set(SENSOR_CONNECTED TRUE CACHE BOOL "Indicates if the sensor is connected to the platform")
+
 # add include files as per PCL version installed
 if(${PCL_VERSION} VERSION_EQUAL 1.10.0)
   include_directories(include_floor_plane_detection/pcl_1_10_0)
@@ -39,27 +41,23 @@ include_directories(
   include
 )
 
-if(NOT HOST_BUILD)
-  message(WARNING "If the package is being built on the TOF module, ignore this warning; otherwise, use the command below to build the package on the host.
-  colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DHOST_BUILD=TRUE")
-endif()
+
 
 #List of common source files.
-SET( COMMON_SRC_FILES src/adi_3dtof_safety_bubble_detector_main.cpp src/adi_3dtof_safety_bubble_detector_algorithm.cpp src/adi_3dtof_safety_bubble_detector_application.cpp src/input_sensor_file.cpp src/image_proc_utils.cpp src/output_sensor_file.cpp src/adi_3dtof_safety_bubble_detector_input_thread.cpp src/adi_3dtof_safety_bubble_detector_output_thread.cpp src/input_sensor_file_rosbagbin.cpp src/ros-perception/image_transport_plugins/compressed_depth_image_transport/rvl_codec.cpp)
+SET( COMMON_SRC_FILES src/adi_3dtof_safety_bubble_detector_main.cpp src/adi_3dtof_safety_bubble_detector_algorithm.cpp src/adi_3dtof_safety_bubble_detector_application.cpp src/image_proc_utils.cpp src/output_sensor_file.cpp src/adi_3dtof_safety_bubble_detector_input_thread.cpp src/adi_3dtof_safety_bubble_detector_output_thread.cpp src/module_profile.cpp src/input_sensor_file_rosbagbin.cpp src/ros-perception/image_transport_plugins/compressed_depth_image_transport/rvl_codec.cpp)
 
-if(NOT HOST_BUILD)
-  add_compile_definitions(ENABLE_ADI_3DTOF_ADTF31XX_SENSOR)
+if(SENSOR_CONNECTED)
+  # compile for platforms with 3D ToF Sensor
+  find_package(aditof REQUIRED)
+  add_compile_definitions(ENABLE_ADTF31XX_SENSOR)
   add_executable(${PROJECT_NAME}_node ${COMMON_SRC_FILES} src/input_sensor_adtf31xx.cpp)
+  ament_target_dependencies(${PROJECT_NAME}_node rclcpp std_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs pcl_ros pcl_conversions cv_bridge image_geometry image_transport compressed_depth_image_transport OpenCV aditof)
 else()
   add_executable(${PROJECT_NAME}_node ${COMMON_SRC_FILES} src/input_sensor_ros_topics.cpp)
+  ament_target_dependencies(${PROJECT_NAME}_node rclcpp std_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs pcl_ros pcl_conversions cv_bridge image_geometry image_transport compressed_depth_image_transport OpenCV)
 endif()
 
-ament_target_dependencies(${PROJECT_NAME}_node rclcpp std_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs pcl_ros pcl_conversions cv_bridge image_geometry image_transport compressed_depth_image_transport OpenCV)
 
-
-if(NOT HOST_BUILD)
-  set(ADITOF_LIB1 ${PROJECT_SOURCE_DIR}/libs/libaditof.so)
-endif()
 
 if(${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "aarch64|AARCH64")
   if(${PCL_VERSION} VERSION_EQUAL 1.10.0)
@@ -75,7 +73,6 @@ endif()
 target_link_libraries(${PROJECT_NAME}_node
   ${Boost_SYSTEM_LIBRARY}
   ${OpenCV_LIBRARIES}
-  ${ADITOF_LIB1}
   ${FLOOR_DETECTOR_CORE_LIB}
  )
 
@@ -86,7 +83,7 @@ DESTINATION lib/${PROJECT_NAME}
 
 
 #This is the executable to be run on the Host to stitch the output images
-if(HOST_BUILD)
+if(BUILD_EXAMPLE_NODE)
   add_executable(adi_3dtof_safety_bubble_detector_stitch_host_node src/adi_3dtof_safety_bubble_detector_stitch_host.cpp src/image_proc_utils.cpp)
 
   ament_target_dependencies(adi_3dtof_safety_bubble_detector_stitch_host_node rclcpp std_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs pcl_ros cv_bridge image_geometry image_transport compressed_depth_image_transport OpenCV)

@@ -27,7 +27,7 @@ public:
   ADISensorFrameInfo(int image_width, int image_height)
   {
     depth_image_ = new short[image_width * image_height];
-    ir_image_ = new short[image_width * image_height];
+    ab_image_ = new short[image_width * image_height];
     frame_timestamp_ = rclcpp::Clock{}.now();
   }
 
@@ -38,10 +38,10 @@ public:
   ~ADISensorFrameInfo()
   {
     delete[] depth_image_;
-    delete[] ir_image_;
+    delete[] ab_image_;
   }
   short * depth_image_;
-  short * ir_image_;
+  short * ab_image_;
   rclcpp::Time frame_timestamp_;
 };
 

@@ -38,10 +38,10 @@ void ADI3DToFSafetyBubbleDetector::updateDynamicReconfigureVariablesProcessThrea
       // Rectangular Safety Bubble
       cv::Point top_left(
         (image_width_ / 2) - safety_zone_radius_pixels_,
-        (image_width_ / 2) - safety_zone_radius_pixels_);
+        (image_height_ / 2) - safety_zone_radius_pixels_);
       cv::Point bottom_right(
         (image_width_ / 2) + safety_zone_radius_pixels_,
-        (image_width_ / 2) + safety_zone_radius_pixels_);
+        (image_height_ / 2) + safety_zone_radius_pixels_);
 
       safety_bubble_zone_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
       safety_bubble_zone_red_mask_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC3);
@@ -95,12 +95,12 @@ bool ADI3DToFSafetyBubbleDetector::runSafetyBubbleDetection()
     this->get_logger(), "adi_3dtof_safety_bubble_detector::Running loop : " << frame_number_);
 
   depth_frame_ = inframe->getDepthFrame();
-  ir_frame_ = inframe->getIRFrame();
+  ab_frame_ = inframe->getIRFrame();
   xyz_frame_ = inframe->getXYZFrame();
   compressed_depth_frame_ = inframe->getCompressedDepthFrame();
-  compressed_ir_frame_ = inframe->getCompressedIRFrame();
+  compressed_ab_frame_ = inframe->getCompressedIRFrame();
   compressed_depth_frame_size_ = inframe->getCompressedDepthFrameSize();
-  compressed_ir_frame_size_ = inframe->getCompressedIRFrameSize();
+  compressed_ab_frame_size_ = inframe->getCompressedIRFrameSize();
   // Set global timestamp
   curr_frame_timestamp_ = inframe->getFrameTimestamp();
 
@@ -109,7 +109,7 @@ bool ADI3DToFSafetyBubbleDetector::runSafetyBubbleDetection()
     ransac_input_xyz_frame = inframe->getRotatedXYZFrame();
   }
 
-  if ((depth_frame_ == nullptr) || (ir_frame_ == nullptr)) {
+  if ((depth_frame_ == nullptr) || (ab_frame_ == nullptr)) {
     return false;
   }
   PROFILE_FUNCTION_END(SafetyBubble_GetNextFrame)
@@ -129,7 +129,7 @@ bool ADI3DToFSafetyBubbleDetector::runSafetyBubbleDetection()
 
   // nullptr checks
   if (
-    (new_output_frame->depth_frame_ == nullptr) || (new_output_frame->ir_frame_ == nullptr) ||
+    (new_output_frame->depth_frame_ == nullptr) || (new_output_frame->ab_frame_ == nullptr) ||
     (new_output_frame->xyz_frame_ == nullptr)) {
     return false;
   }
@@ -205,18 +205,18 @@ bool ADI3DToFSafetyBubbleDetector::runSafetyBubbleDetection()
     new_output_frame->noise_count_ = noise_count_;
     new_output_frame->ransac_time_ms_ = ransac_time_ms_;
     new_output_frame->compressed_depth_frame_size_ = compressed_depth_frame_size_;
-    new_output_frame->compressed_ir_frame_size_ = compressed_ir_frame_size_;
+    new_output_frame->compressed_ab_frame_size_ = compressed_ab_frame_size_;
     memcpy(
       new_output_frame->depth_frame_, depth_frame_,
       image_width_ * image_height_ * sizeof(depth_frame_[0]));
     memcpy(
-      new_output_frame->ir_frame_, ir_frame_, image_width_ * image_height_ * sizeof(ir_frame_[0]));
+      new_output_frame->ab_frame_, ab_frame_, image_width_ * image_height_ * sizeof(ab_frame_[0]));
     memcpy(
       new_output_frame->compressed_depth_frame_, compressed_depth_frame_,
       2 * image_width_ * image_height_ * sizeof(compressed_depth_frame_[0]));
     memcpy(
-      new_output_frame->compressed_ir_frame_, compressed_ir_frame_,
-      2 * image_width_ * image_height_ * sizeof(compressed_ir_frame_[0]));
+      new_output_frame->compressed_ab_frame_, compressed_ab_frame_,
+      2 * image_width_ * image_height_ * sizeof(compressed_ab_frame_[0]));
     memcpy(
       new_output_frame->xyz_frame_, xyz_frame_,
       3 * image_width_ * image_height_ * sizeof(xyz_frame_[0]));

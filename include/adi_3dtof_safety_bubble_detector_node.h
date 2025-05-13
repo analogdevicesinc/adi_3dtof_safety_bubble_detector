@@ -36,7 +36,7 @@ and its licensors.
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 //#include <pcl_ros/point_cloud.hpp>
-#include <compressed_depth_image_transport/compression_common.h>
+#include "ros-perception/image_transport_plugins/compressed_depth_image_transport/compression_common.h"
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 
@@ -116,12 +116,12 @@ public:
       input_file_name_or_ros_topic_prefix_descriptor);
 
     // enable option to publish depth and ir compressed image
-    rcl_interfaces::msg::ParameterDescriptor enable_depth_ir_compressed_image_descriptor{};
-    enable_depth_ir_compressed_image_descriptor.read_only = true;
-    enable_depth_ir_compressed_image_descriptor.description =
+    rcl_interfaces::msg::ParameterDescriptor enable_depth_ab_compressed_image_descriptor{};
+    enable_depth_ab_compressed_image_descriptor.read_only = true;
+    enable_depth_ab_compressed_image_descriptor.description =
       "Unchecked: Publishes uncompressed images, Checked: Publishes compressed images";
     this->declare_parameter<bool>(
-      "param_enable_depth_ir_compression", false, enable_depth_ir_compressed_image_descriptor);
+      "param_enable_depth_ab_compression", false, enable_depth_ab_compressed_image_descriptor);
 
     // enable option to publish compressed output image.
     rcl_interfaces::msg::ParameterDescriptor enable_output_compressed_image_descriptor{};
@@ -170,13 +170,20 @@ public:
     path_of_the_config_file_descriptor.description = "Path of the configuaration files";
     this->declare_parameter<std::string>(
       "param_config_file_name_of_tof_sdk", "no name", path_of_the_config_file_descriptor);
+	  
+    // Camera mode for the TOF sensor
+    rcl_interfaces::msg::ParameterDescriptor camera_mode_descriptor{};
+    camera_mode_descriptor.read_only = true;
+    camera_mode_descriptor.description = "Camera Mode";
+    this->declare_parameter<int>("param_camera_mode", 3, camera_mode_descriptor);
 
-    // frame type supported in TOF SDK
-    rcl_interfaces::msg::ParameterDescriptor frame_type_descriptor{};
-    frame_type_descriptor.read_only = true;
-    frame_type_descriptor.description = "Frame type";
-    this->declare_parameter<std::string>("param_frame_type", "no name", frame_type_descriptor);
-
+    // ip address of the sensor
+    rcl_interfaces::msg::ParameterDescriptor ip_address_of_sensor_descriptor{};
+    ip_address_of_sensor_descriptor.read_only = true;
+    ip_address_of_sensor_descriptor.description = "IP address of the sensor";
+    this->declare_parameter<std::string>(
+      "param_input_sensor_ip", "no name", ip_address_of_sensor_descriptor);	
+    
     // Safety zone radius
     rcl_interfaces::msg::ParameterDescriptor safety_zone_radius_descriptor{};
     rcl_interfaces::msg::FloatingPointRange safety_zone_radius_range;
@@ -263,8 +270,8 @@ public:
     enable_ransac_floor_detection_ = (this->get_parameter("param_enable_ransac_floor_detection")
                                         .get_parameter_value()
                                         .get<bool>());
-    enable_depth_ir_compression_ =
-      (this->get_parameter("param_enable_depth_ir_compression").get_parameter_value().get<bool>() ==
+    enable_depth_ab_compression_ =
+      (this->get_parameter("param_enable_depth_ab_compression").get_parameter_value().get<bool>() ==
        1);
     enable_output_image_compression_ = (this->get_parameter("param_enable_output_image_compression")
                                           .get_parameter_value()
@@ -302,8 +309,9 @@ public:
                                     .get_parameter_value()
                                     .get<std::string>();
 
-    std::string frame_type;
-    frame_type = this->get_parameter("param_frame_type").get_parameter_value().get<std::string>();
+    input_sensor_ip_ =
+      this->get_parameter("param_input_sensor_ip").get_parameter_value().get<std::string>();          
+    int camera_mode = this->get_parameter("param_camera_mode").get_parameter_value().get<int>();    
 
     fallback_floor_height_offset_mtr_ = 0.1f;
     frame_number_ = 0;
@@ -334,19 +342,22 @@ public:
     input_sensor_ = InputSensorFactory::getInputSensor(input_sensor_mode_);
 
     // Open the sensor
+    if (input_sensor_mode_ != 3) {
+      // If the mode is not ADTF31xx sensor over Network, then the ip should be set to ""
+      input_sensor_ip_.clear();
+    }
     input_sensor_->openSensor(
-      input_file_name_or_ros_topic_prefix_name_, input_image_width, input_image_height,
-      processing_scale, config_file_name_of_tof_sdk);
+      input_file_name_or_ros_topic_prefix_name_, input_image_width, input_image_height, config_file_name_of_tof_sdk, input_sensor_ip_);    
     if (!input_sensor_->isOpened()) {
       RCLCPP_ERROR(
         this->get_logger(), "Could not open the sensor %s",
         input_file_name_or_ros_topic_prefix_name_.c_str());
       rclcpp::shutdown();
     }
-    processing_scale_ = processing_scale;
 
     // Configure the sensor
-    input_sensor_->configureSensor(frame_type);
+    input_sensor_->configureSensor(camera_mode);
+
     image_width_ = input_sensor_->getFrameWidth();
     image_height_ = input_sensor_->getFrameHeight();
 
@@ -426,14 +437,14 @@ public:
     }
 
     // Input and Intermediate Debug Images
-    if (enable_depth_ir_compression_ == true) {
+    if (enable_depth_ab_compression_ == true) {
       compressed_depth_image_publisher_ = this->create_publisher<sensor_msgs::msg::CompressedImage>(
         "depth_image/compressedDepth", 10);
-      compressed_ir_image_publisher_ =
-        this->create_publisher<sensor_msgs::msg::CompressedImage>("ir_image/compressedDepth", 10);
+      compressed_ab_image_publisher_ =
+        this->create_publisher<sensor_msgs::msg::CompressedImage>("ab_image/compressedDepth", 10);
     } else {
       depth_image_publisher_ = this->create_publisher<sensor_msgs::msg::Image>("depth_image", 10);
-      ir_image_publisher_ = this->create_publisher<sensor_msgs::msg::Image>("ir_image", 10);
+      ab_image_publisher_ = this->create_publisher<sensor_msgs::msg::Image>("ab_image", 10);
     }
     // xyz_image_publisher_ = this->advertise<sensor_msgs::PointCloud2>("point_cloud", 10);
     // vcam_depth_image_publisher_ = this->advertise<sensor_msgs::Image>("vcam_depth_image", 10);
@@ -518,7 +529,7 @@ private:
   float virtual_camera_height_mtr_;
   int input_sensor_mode_;
   int output_sensor_mode_;
-  bool enable_depth_ir_compression_;
+  bool enable_depth_ab_compression_;
   bool enable_output_image_compression_;
   bool compute_point_cloud_enable_ = false;
   int image_width_;
@@ -527,6 +538,7 @@ private:
   int ab_threshold_ = 10;
   int confidence_threshold_ = 10;
   std::string input_file_name_or_ros_topic_prefix_name_;
+  std::string input_sensor_ip_;
   std::string output_file_name_;
   std::unique_ptr<tf2_ros::Buffer> vcam_tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> vcam_tf_listener_{nullptr};
@@ -537,7 +549,7 @@ private:
   sensor_msgs::msg::CameraInfo cam_info_msg_;
   unsigned short * depth_frame_ = nullptr;
   unsigned short * depth_frame_with_floor_ = nullptr;
-  unsigned short * ir_frame_ = nullptr;
+  unsigned short * ab_frame_ = nullptr;
   short * xyz_frame_ = nullptr;
   short * rotated_xyz_frame_ = nullptr;
   unsigned short * vcam_depth_frame_ = nullptr;
@@ -548,10 +560,10 @@ private:
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr object_detected_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr out_image_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_image_publisher_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr ir_image_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr ab_image_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr compressed_out_image_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr compressed_depth_image_publisher_;
-  rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr compressed_ir_image_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr compressed_ab_image_publisher_;
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr xyz_image_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr vcam_depth_image_publisher_;
@@ -574,9 +586,9 @@ private:
   bool enable_safety_bubble_zone_visualization_;
 
   unsigned char * compressed_depth_frame_ = nullptr;
-  unsigned char * compressed_ir_frame_ = nullptr;
+  unsigned char * compressed_ab_frame_ = nullptr;
   int compressed_depth_frame_size_ = 0;
-  int compressed_ir_frame_size_ = 0;
+  int compressed_ab_frame_size_ = 0;
 
   /*Floor Detection Variables*/
   /**
@@ -898,12 +910,12 @@ private:
   void publishPointCloud(short * xyz_frame);
 
   void publishImageAndCameraInfo(
-    unsigned short * depth_frame, unsigned short * ir_frame, unsigned short * vcam_depth_frame,
+    unsigned short * depth_frame, unsigned short * ab_frame, unsigned short * vcam_depth_frame,
     short * xyz_frame);
 
   void publishImageAndCameraInfo(
     unsigned char * compressed_depth_frame, int compressed_depth_frame_size,
-    unsigned char * compressed_ir_frame, int compressed_ir_frame_size);
+    unsigned char * compressed_ab_frame, int compressed_ab_frame_size);
 
   int setZoneRadius();
 
@@ -928,17 +940,13 @@ private:
    */
   void populateIdealCameraIntrinsics(CameraIntrinsics * camera_intrinsics)
   {
-    // The hardcoded values used below correspond to
-    // 1024x1024 image. Hence scale the values as per
-    // actual image resolution.
-    float scale = 1024 / image_width_;
 
-    camera_intrinsics->camera_matrix[0] = 785.0f;
+    camera_intrinsics->camera_matrix[0] = depth_intrinsics_.camera_matrix[0];
     camera_intrinsics->camera_matrix[1] = 0.0f;
-    camera_intrinsics->camera_matrix[2] = 512.0f;
+    camera_intrinsics->camera_matrix[2] = depth_intrinsics_.camera_matrix[2];
     camera_intrinsics->camera_matrix[3] = 0.0f;
-    camera_intrinsics->camera_matrix[4] = 785.0f;
-    camera_intrinsics->camera_matrix[5] = 512.0f;
+    camera_intrinsics->camera_matrix[4] = depth_intrinsics_.camera_matrix[4];
+    camera_intrinsics->camera_matrix[5] = depth_intrinsics_.camera_matrix[5];
     camera_intrinsics->camera_matrix[6] = 0.0f;
     camera_intrinsics->camera_matrix[7] = 0.0f;
     camera_intrinsics->camera_matrix[8] = 1.0f;
@@ -950,12 +958,6 @@ private:
     camera_intrinsics->distortion_coeffs[5] = 0.0f;
     camera_intrinsics->distortion_coeffs[6] = 0.0f;
     camera_intrinsics->distortion_coeffs[7] = 0.0f;
-
-    // Scale
-    camera_intrinsics->camera_matrix[0] /= scale;
-    camera_intrinsics->camera_matrix[2] /= scale;
-    camera_intrinsics->camera_matrix[4] /= scale;
-    camera_intrinsics->camera_matrix[5] /= scale;
 
     return;
   }

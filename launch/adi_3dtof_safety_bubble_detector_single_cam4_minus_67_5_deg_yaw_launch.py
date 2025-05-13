@@ -9,26 +9,7 @@ from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PathJoinSubstitution, TextSubstitution
 from launch.substitutions import LaunchConfiguration, PythonExpression
 
-# configuration file names
-config_json_file_names = ['config_crosby_old_modes.json', 'config_crosby_adsd3500_new_modes.json']
-config_ini_file_names = ['RawToDepthAdsd3500_qmp.ini', 'RawToDepthAdsd3500_lr-qnative.ini']
-
-package_dir = get_package_share_directory('adi_3dtof_safety_bubble_detector') + "/../../../../src/adi_3dtof_safety_bubble_detector/"
-
-# this function modifies the path of the ini file in configuration json file
-def modify_ini_path_in_json_file(config_file_name_of_tof_sdk):
-    with open(config_file_name_of_tof_sdk, 'r+') as file:
-        data = json.load(file)
-
-    for i in range(len(config_json_file_names)):
-        if (config_file_name_of_tof_sdk.rsplit("/", 1)[1] == config_json_file_names[i]):
-            modified_file_path = package_dir + "config/" + config_ini_file_names[i]
-    
-    data["DEPTH_INI"] = modified_file_path
-
-    with open(config_file_name_of_tof_sdk, 'w') as file:
-        json.dump(data, file, indent = 4) 
-
+package_dir = get_package_share_directory('adi_3dtof_safety_bubble_detector') + "/../../../../src/rcd-adi-3dtof-safety-bubble-detector/"
 
 def generate_launch_description():
 
@@ -56,6 +37,7 @@ def generate_launch_description():
     # Input mode
     # 0:Real Time Sensor
     # 2:Rosbag bin
+    # 3:Real Time Sensor network mode
     arg_input_sensor_mode_desc = DeclareLaunchArgument('arg_input_sensor_mode', default_value="0")
 
     # Output mode
@@ -65,8 +47,6 @@ def generate_launch_description():
     # Input mode argument
     # if "arg_input_mode" is 2 then "arg_input_file_name_or_ros_topic_prefix_name" represents the file name.
     # Ex:     arg_input_file_name_or_ros_topic_prefix_name_desc = DeclareLaunchArgument('arg_input_file_name_or_ros_topic_prefix_name', default_value=package_dir + "../adi_3dtof_input_video_files/adi_3dtof_height_170mm_yaw_135degrees_cam1.bin")
-    # if "arg_input_mode" is 3 then "arg_input_file_name_or_ros_topic_prefix_name" represents the prefix of ros topics.
-    # Ex:     arg_input_file_name_or_ros_topic_prefix_name_desc = DeclareLaunchArgument('arg_input_file_name_or_ros_topic_prefix_name', default_value=cam1")
     arg_input_file_name_or_ros_topic_prefix_name_desc = DeclareLaunchArgument('arg_input_file_name_or_ros_topic_prefix_name', default_value=package_dir + "../adi_3dtof_input_video_files/adi_3dtof_height_170mm_yaw_135degrees_cam1.bin")
     
     # Parameters related to ransac floor detection
@@ -91,7 +71,7 @@ def generate_launch_description():
     # Parameters related to image compressions
 
     # enables depth and IR compression
-    arg_enable_depth_ir_compression_desc = DeclareLaunchArgument('arg_enable_depth_ir_compression', default_value="false")
+    arg_enable_depth_ab_compression_desc = DeclareLaunchArgument('arg_enable_depth_ab_compression', default_value="false")
 
     # enables output image compression
     arg_enable_output_image_compression_desc = DeclareLaunchArgument('arg_enable_output_image_compression', default_value="true")
@@ -107,15 +87,35 @@ def generate_launch_description():
     # Confidence threshold value default(10)
     arg_confidence_threshold_desc = DeclareLaunchArgument('arg_confidence_threshold', default_value="10")
 
-    # Configuration fie name of ToF SDK
-    #    "config_crosby_old_modes.json" - Sensor serial number starting with CR/DV - config_json_file_names[0]
-    #    "config_crosby_adsd3500_new_modes.json" - Sensor serial number starting with AM - config_json_file_names[1]    
-    arg_config_file_name_of_tof_sdk_desc = DeclareLaunchArgument('arg_config_file_name_of_tof_sdk', default_value= package_dir + "config/" + config_json_file_names[0])
+	# Input Sensor IP Address : Applicable only if inpiut sensor mode is 3
+    arg_input_sensor_ip_desc = DeclareLaunchArgument(
+        'arg_input_sensor_ip', default_value="10.43.0.1")
+
+    # Configuration file name of ToF SDK 
+    # config_adsd3500_adsd3100.json - For ADSd3100(MP sensor)
+    # config_adsd3500_adsd3030.json - For ADSd3030(VGA sensor)
+    config_json_file_name = "config_adsd3500_adsd3100.json"
+    arg_config_file_name_of_tof_sdk_desc = DeclareLaunchArgument(
+        'arg_config_file_name_of_tof_sdk', default_value= package_dir + "config/" + config_json_file_name)
+     
     # Frame Type
-    #    "qmp" - Sensor serial number starting with CR/DV
-    #    "lr-qnative" - Sensor serial number starting with AM
-    arg_frame_type_desc = DeclareLaunchArgument('arg_frame_type', default_value="qmp")
- 
+    #MP(1024x01024) sensor:
+    #    "sr-native" - 0
+    #    "lr-native" - 1
+    #    "sr-qnative" - 2
+    #    "lr-qnative" - 3
+    #    "sr-mixed" - 5
+    #    "lr-mixed" - 6
+
+    #VGA(640x512) sensor:
+    #    "sr-native" - 0
+    #    "lr-native" - 1
+    #    "lr-qnative" - 3
+    #    "sr-mixed" - 5
+    #    "lr-mixed" - 6    
+    arg_camera_mode_desc = DeclareLaunchArgument(
+        'arg_camera_mode', default_value="3")
+		
     # Modifying the path to ini file in json file only if input sensor mode is camera
     if arg_input_sensor_mode_desc.default_value[0].text == '0':
         modify_ini_path_in_json_file(arg_config_file_name_of_tof_sdk_desc.default_value[0].text) 
@@ -185,12 +185,13 @@ def generate_launch_description():
                                             'param_enable_ransac_floor_detection': LaunchConfiguration('arg_enable_ransac_floor_detection'),
                                             'param_enable_floor_paint': LaunchConfiguration('arg_enable_floor_paint'),
                                             'param_enable_safety_bubble_zone_visualization': LaunchConfiguration('arg_enable_safety_bubble_zone_visualization'),
-                                            'param_enable_depth_ir_compression': LaunchConfiguration('arg_enable_depth_ir_compression'),
+                                            'param_enable_depth_ab_compression': LaunchConfiguration('arg_enable_depth_ab_compression'),
                                             'param_enable_output_image_compression': LaunchConfiguration('arg_enable_output_image_compression'),
                                             'param_ab_threshold': LaunchConfiguration('arg_ab_threshold'),
                                             'param_confidence_threshold': LaunchConfiguration('arg_confidence_threshold'),
                                             'param_config_file_name_of_tof_sdk': LaunchConfiguration('arg_config_file_name_of_tof_sdk'),
-                                            'param_frame_type': LaunchConfiguration('arg_frame_type')
+                                            'param_input_sensor_ip' : LaunchConfiguration('arg_input_sensor_ip'),
+                                			'param_camera_mode': LaunchConfiguration('arg_camera_mode'),                                            
                                         }],
                                         #prefix=['valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=valgrind.rpt'],
                                         #prefix=['valgrind --tool=memcheck --track-origins=yes --log-file=valgrind.rpt'],
@@ -261,12 +262,13 @@ def generate_launch_description():
         arg_enable_ransac_floor_detection_desc,
         arg_enable_floor_paint_desc,
         arg_enable_safety_bubble_zone_visualization_desc,
-        arg_enable_depth_ir_compression_desc,
+        arg_enable_depth_ab_compression_desc,
         arg_enable_output_image_compression_desc,
         arg_ab_threshold_desc,
         arg_confidence_threshold_desc,
         arg_config_file_name_of_tof_sdk_desc,
-        arg_frame_type_desc,
+        arg_input_sensor_ip_desc,
+        arg_camera_mode_desc,
         cam1_base_to_optical_tf_desc,
         cam1_map_to_base_tf_desc,
         cam1_map_to_vcam_tf_desc,

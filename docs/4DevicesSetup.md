@@ -74,7 +74,7 @@ At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start
 /cam1/object_detected,
 /cam1/compressed_out_image, 
 /cam1/depth_image, 
-/cam1/ir_image 
+/cam1/ab_image 
 /cam1/camera_info
 ```
 
@@ -88,7 +88,7 @@ At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start
 /cam2/object_detected,
 /cam2/compressed_out_image, 
 /cam2/depth_image, 
-/cam2/ir_image 
+/cam2/ab_image 
 /cam2/camera_info
 ```
 
@@ -102,7 +102,7 @@ At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start
 /cam3/object_detected,
 /cam3/compressed_out_image, 
 /cam3/depth_image, 
-/cam3/ir_image 
+/cam3/ab_image 
 /cam3/camera_info
 ```
 
@@ -117,7 +117,7 @@ At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start
 /cam4/object_detected,
 /cam4/compressed_out_image, 
 /cam4/depth_image, 
-/cam4/ir_image 
+/cam4/ab_image 
 /cam4/camera_info
 ```       
 

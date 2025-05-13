@@ -123,7 +123,7 @@ void ADI3DToFSafetyBubbleDetector::readInput()
 
         // Frame read succesfully, compress the frames.
         PROFILE_FUNCTION_START(RVL_EnCodeDepth_IRImg)
-        if (enable_depth_ir_compression_) {
+        if (enable_depth_ab_compression_) {
           compressed_depth_image_transport::RvlCodec rvl;
           unsigned short * raw_depth_frame = new_frame->getDepthFrame();
           unsigned char * compressed_depth_frame = new_frame->getCompressedDepthFrame();
@@ -132,11 +132,11 @@ void ADI3DToFSafetyBubbleDetector::readInput()
           new_frame->setCompressedDepthFrameSize(compressed_size_depth_frame);
 
           // IR
-          unsigned short * raw_ir_frame = new_frame->getIRFrame();
-          unsigned char * compressed_ir_frame = new_frame->getCompressedIRFrame();
-          int compressed_size_ir_frame = rvl.CompressRVL(
-            &raw_ir_frame[0], &compressed_ir_frame[0], image_width_ * image_height_);
-          new_frame->setCompressedIRFrameSize(compressed_size_ir_frame);
+          unsigned short * raw_ab_frame = new_frame->getIRFrame();
+          unsigned char * compressed_ab_frame = new_frame->getCompressedIRFrame();
+          int compressed_size_ab_frame = rvl.CompressRVL(
+            &raw_ab_frame[0], &compressed_ab_frame[0], image_width_ * image_height_);
+          new_frame->setCompressedIRFrameSize(compressed_size_ab_frame);
         }
         PROFILE_FUNCTION_START(RVL_EnCodeDepth_IRImg)
       }

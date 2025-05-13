@@ -136,7 +136,7 @@ void ImageProcUtils::transformFrame(
       out_roi->x = std::max(0, min_x);
       out_roi->y = std::max(0, min_y);
       out_roi->width = std::min(std::max(0, (max_x - out_roi->x) + 1), img_width);
-      out_roi->height = std::min(std::max(0, (max_y - out_roi->y) + 1), img_width);
+      out_roi->height = std::min(std::max(0, (max_y - out_roi->y) + 1), img_height);
     }
   }
 }
@@ -238,7 +238,7 @@ void ImageProcUtils::transformFrameWithFloorRemoval(
       out_roi->x = std::max(0, min_x);
       out_roi->y = std::max(0, min_y);
       out_roi->width = std::min(std::max(0, (max_x - out_roi->x) + 1), img_width);
-      out_roi->height = std::min(std::max(0, (max_y - out_roi->y) + 1), img_width);
+      out_roi->height = std::min(std::max(0, (max_y - out_roi->y) + 1), img_height);
     }
   }
 }
