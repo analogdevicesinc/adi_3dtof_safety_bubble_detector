@@ -44,7 +44,7 @@ include_directories(
 
 
 #List of common source files.
-SET( COMMON_SRC_FILES src/adi_3dtof_safety_bubble_detector_main.cpp src/adi_3dtof_safety_bubble_detector_algorithm.cpp src/adi_3dtof_safety_bubble_detector_application.cpp src/image_proc_utils.cpp src/output_sensor_file.cpp src/adi_3dtof_safety_bubble_detector_input_thread.cpp src/adi_3dtof_safety_bubble_detector_output_thread.cpp src/module_profile.cpp src/input_sensor_file_rosbagbin.cpp src/ros-perception/image_transport_plugins/compressed_depth_image_transport/rvl_codec.cpp)
+SET( COMMON_SRC_FILES src/adi_3dtof_safety_bubble_detector_main.cpp src/adi_3dtof_safety_bubble_detector_algorithm.cpp src/adi_3dtof_safety_bubble_detector_application.cpp src/image_proc_utils.cpp src/output_sensor_file.cpp src/adi_3dtof_safety_bubble_detector_input_thread.cpp src/adi_3dtof_safety_bubble_detector_output_thread.cpp src/input_sensor_file_rosbagbin.cpp src/ros-perception/image_transport_plugins/compressed_depth_image_transport/rvl_codec.cpp)
 
 if(SENSOR_CONNECTED)
   # compile for platforms with 3D ToF Sensor
