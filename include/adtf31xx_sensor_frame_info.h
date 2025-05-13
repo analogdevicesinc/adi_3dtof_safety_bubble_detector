@@ -26,22 +26,22 @@ public:
   {
     // Create the node.
     depth_frame_ = nullptr;
-    ir_frame_ = nullptr;
+    ab_frame_ = nullptr;
     xyz_frame_ = nullptr;
     rotated_xyz_frame_ = nullptr;
     image_width_ = image_width;
     image_height_ = image_height;
 
     depth_frame_ = new unsigned short[image_width * image_height];
-    ir_frame_ = new unsigned short[image_width * image_height];
+    ab_frame_ = new unsigned short[image_width * image_height];
     xyz_frame_ = new short[image_width * image_height * 3];
     rotated_xyz_frame_ = new short[image_width * image_height * 3];
 
     // Worst case, RVL compression can take ~1.5x the input data.
     compressed_depth_frame_ = new unsigned char[2 * image_width * image_height];
-    compressed_ir_frame_ = new unsigned char[2 * image_width * image_height];
+    compressed_ab_frame_ = new unsigned char[2 * image_width * image_height];
     compressed_depth_frame_size_ = 0;
-    compressed_ir_frame_size_ = 0;
+    compressed_ab_frame_size_ = 0;
     frame_timestamp_ = ros::Time::now();
     modified_xyz_frame_ = new float[image_width * image_height * 3];
     modified_xyz_frame_size_ = 0;
@@ -57,9 +57,9 @@ public:
     {
       delete[] depth_frame_;
     }
-    if (ir_frame_ != nullptr)
+    if (ab_frame_ != nullptr)
     {
-      delete[] ir_frame_;
+      delete[] ab_frame_;
     }
     if (xyz_frame_ != nullptr)
     {
@@ -73,9 +73,9 @@ public:
     {
       delete[] compressed_depth_frame_;
     }
-    if (compressed_ir_frame_ != nullptr)
+    if (compressed_ab_frame_ != nullptr)
     {
-      delete[] compressed_ir_frame_;
+      delete[] compressed_ab_frame_;
     }
     if (modified_xyz_frame_ != nullptr)
     {
@@ -101,7 +101,7 @@ public:
 
   unsigned short* getIRFrame() const
   {
-    return ir_frame_;
+    return ab_frame_;
   }
 
   /**
@@ -142,7 +142,7 @@ public:
    */
   unsigned char* getCompressedIRFrame() const
   {
-    return compressed_ir_frame_;
+    return compressed_ab_frame_;
   }
 
   /**
@@ -182,7 +182,7 @@ public:
    */
   int getCompressedIRFrameSize() const
   {
-    return compressed_ir_frame_size_;
+    return compressed_ab_frame_size_;
   }
 
   /**
@@ -198,11 +198,11 @@ public:
   /**
    * @brief Set the Compressed IR Image Size
    *
-   * @param compressed_ir_frame_size size of compressed IR image
+   * @param compressed_ab_frame_size size of compressed IR image
    */
-  void setCompressedIRFrameSize(int compressed_ir_frame_size)
+  void setCompressedIRFrameSize(int compressed_ab_frame_size)
   {
-    compressed_ir_frame_size_ = compressed_ir_frame_size;
+    compressed_ab_frame_size_ = compressed_ab_frame_size;
   }
 
   void setModifiedXYZFrameSize(int frame_size)
@@ -234,15 +234,15 @@ public:
   ADTF31xxSensorFrameInfo& operator=(const ADTF31xxSensorFrameInfo& rhs)
   {
     memcpy(depth_frame_, rhs.depth_frame_, sizeof(depth_frame_[0]) * image_width_ * image_height_);
-    memcpy(ir_frame_, rhs.ir_frame_, sizeof(ir_frame_[0]) * image_width_ * image_height_);
+    memcpy(ab_frame_, rhs.ab_frame_, sizeof(ab_frame_[0]) * image_width_ * image_height_);
     memcpy(xyz_frame_, rhs.xyz_frame_, sizeof(xyz_frame_[0]) * image_width_ * image_height_ * 3);
     memcpy(rotated_xyz_frame_, rhs.rotated_xyz_frame_,
            sizeof(rotated_xyz_frame_[0]) * image_width_ * image_height_ * 3);
     compressed_depth_frame_size_ = rhs.compressed_depth_frame_size_;
-    compressed_ir_frame_size_ = rhs.compressed_ir_frame_size_;
+    compressed_ab_frame_size_ = rhs.compressed_ab_frame_size_;
     memcpy(compressed_depth_frame_, rhs.compressed_depth_frame_,
            sizeof(compressed_depth_frame_[0]) * compressed_depth_frame_size_);
-    memcpy(compressed_ir_frame_, rhs.compressed_ir_frame_, sizeof(compressed_ir_frame_[0]) * compressed_ir_frame_size_);
+    memcpy(compressed_ab_frame_, rhs.compressed_ab_frame_, sizeof(compressed_ab_frame_[0]) * compressed_ab_frame_size_);
     image_width_ = rhs.image_width_;
     image_height_ = rhs.image_height_;
     frame_timestamp_ = rhs.frame_timestamp_;
@@ -262,7 +262,7 @@ private:
   /**
    * @brief IR image
    */
-  unsigned short* ir_frame_;
+  unsigned short* ab_frame_;
   /**
    * @brief xyz frame
    *
@@ -282,7 +282,7 @@ private:
    * @brief size of compressed IR image
    *
    */
-  int compressed_ir_frame_size_;
+  int compressed_ab_frame_size_;
   /**
    * @brief compressed depth frame
    *
@@ -292,7 +292,7 @@ private:
    * @brief compressed ir frame
    *
    */
-  unsigned char* compressed_ir_frame_;
+  unsigned char* compressed_ab_frame_;
 
   /**
    * @brief Image width

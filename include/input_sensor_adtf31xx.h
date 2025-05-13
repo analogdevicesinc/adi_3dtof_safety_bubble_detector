@@ -20,12 +20,12 @@ and its licensors.
 class InputSensorADTF31xx : public IInputSensor
 {
 public:
-  void openSensor(std::string sensor_name, int input_image_width, int input_image_height, int processing_scale,
-                  std::string config_file_name);
-  void configureSensor(std::string frame_type);
+  void openSensor(std::string sensor_name, int input_image_width, int input_image_height,
+                  std::string config_file_name, std::string input_sensor_ip);
+  void configureSensor(int camera_mode);
   void getIntrinsics(CameraIntrinsics* camera_intrinsics);
   void getExtrinsics(CameraExtrinsics* camera_extrinsics);
-  bool readNextFrame(unsigned short* depth_frame, unsigned short* ir_frame);
+  bool readNextFrame(unsigned short* depth_frame, unsigned short* ab_frame);
   bool getFrameTimestamp(ros::Time* timestamp);
   void closeSensor();
   void setABinvalidationThreshold(int threshold);

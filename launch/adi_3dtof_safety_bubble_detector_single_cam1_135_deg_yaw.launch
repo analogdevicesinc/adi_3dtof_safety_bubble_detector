@@ -21,9 +21,13 @@
     <!-- Parameters related to input and output modes -->
     <!-- Input mode
         0:Real Time Sensor
+        1:Reserved
         2:Rosbag bin
+        3:Host connected to ADTF31xx
     -->
-	<arg name="arg_input_mode" default="0"/>
+	<arg name="arg_input_mode" default="3"/>
+    <!-- IP of the ADTF31xx board : Applicable only if the input mode is 4 -->
+    <arg name="arg_input_sensor_ip"  default="10.43.0.1"/>
     <!-- Output mode
         1:Creates ouput avi file
     -->   
@@ -31,8 +35,6 @@
     <!-- Input mode argument
         if "arg_input_mode" is 2 then "arg_input_file_name_or_ros_topic_prefix_name" represents the file name.
         Ex: <arg name="arg_input" default="$(find adi_3dtof_safety_bubble_detector)/../adi_3dtof_input_video_files/adi_3dtof_height_170mm_yaw_135degrees_cam1.bin"/>
-        if "arg_input_mode" is 3 then "arg_input_file_name_or_ros_topic_prefix_name" represents the prefix of ros topics.
-        Ex: <arg name="arg_input" default="cam1"/>
     -->
     <arg name="arg_input_file_name_or_ros_topic_prefix_name" default="$(find adi_3dtof_safety_bubble_detector)/../adi_3dtof_input_video_files/adi_3dtof_height_170mm_yaw_135degrees_cam1.bin"/>
 
@@ -53,7 +55,7 @@
 
     <!-- Parameters related to image compressions -->
     <!-- enables depth and IR compression-->
-    <arg name="arg_enable_depth_ir_compression" value="0" />
+    <arg name="arg_enable_depth_ab_compression" value="0" />
     <!-- enables output image compression -->
     <arg name="arg_enable_output_image_compression" value="1" />
 
@@ -66,15 +68,27 @@
     <arg name="arg_confidence_threshold" value="10" />
 
     <!-- Configuration fie name of ToF SDK
-        "config_crosby_old_modes.json" - Sensor serial number starting with CR/DV
-        "config_crosby_adsd3500_new_modes.json" - Sensor serial number starting with AM
+         config_adsd3500_adsd3100.json - For ADSd3100(MP sensor)
+         config_adsd3500_adsd3030.json - For ADSd3030(VGA sensor)
     -->
-    <arg name="arg_config_file_name_of_tof_sdk" value="config/config_crosby_old_modes.json" />
-    <!-- Frame Type
-        "qmp" - Sensor serial number starting with CR/DV
-        "lr-qnative" - Sensor serial number starting with AM
+    <arg name="arg_config_file_name_of_tof_sdk" value="config/config_adsd3500_adsd3100.json" />
+    <!-- camera_mode
+    MP(1024x01024) sensor:
+        "sr-native" - 0
+        "lr-native" - 1
+        "sr-qnative" - 2
+        "lr-qnative" - 3
+        "sr-mixed" - 5
+        "lr-mixed" - 6
+
+    VGA(640x512) sensor:
+        "sr-native" - 0
+        "lr-native" - 1
+        "lr-qnative" - 3
+        "sr-mixed" - 5
+        "lr-mixed" - 6
     -->
-    <arg name="arg_frame_type" value="qmp" />
+    <arg name="arg_camera_mode" value="3" />
 
 
     <!-- Arguments for virtual camera transformation wrt map when virtual camera looking down(downward Z) -->
@@ -110,7 +124,7 @@
 
     <!-- Launch Camera Node -->
     <group ns="$(arg ns_prefix_cam)">
-      <node name="adi_3dtof_safety_bubble_detector_node" pkg="adi_3dtof_safety_bubble_detector" type="adi_3dtof_safety_bubble_detector_node" output="screen" required="true">
+      <node name="adi_3dtof_safety_bubble_detector_node" pkg="adi_3dtof_safety_bubble_detector" type="adi_3dtof_safety_bubble_detector_node" cwd="node" output="screen" required="true">
             <param name="param_camera_link" value="$(arg cam_base_frame)"/>
             <param name="param_optical_camera_link" value="$(arg cam_base_frame_optical)"/>
             <param name="param_virtual_camera_link" value="$(arg virtual_camera_base_frame)"/>
@@ -119,6 +133,7 @@
             <param name="param_safety_bubble_shape" value="$(arg arg_safety_bubble_shape)" />
 			<param name="param_safety_bubble_sensitivity" value="$(arg arg_safety_bubble_detection_sensitivity)" />
             <param name="param_input_sensor_mode" value="$(arg arg_input_mode)" />
+            <param name="param_input_sensor_ip" value="$(arg arg_input_sensor_ip)" />
             <param name="param_output_sensor_mode" value="$(arg arg_output_mode)" />
             <param name="param_input_file_name_or_ros_topic_prefix_name" value="$(arg arg_input_file_name_or_ros_topic_prefix_name)"/>
             <param name="param_ransac_distance_threshold_mtr" value="$(arg arg_ransac_distance_threshold_mtr)" />
@@ -126,12 +141,12 @@
             <param name="param_enable_ransac_floor_detection" value="$(arg arg_enable_ransac_floor_detection)" />
             <param name="param_enable_floor_paint" value="$(arg arg_enable_floor_paint)" />
             <param name="param_enable_safety_bubble_zone_visualization" value="$(arg arg_enable_safety_bubble_zone_visualization)" />
-            <param name="param_enable_depth_ir_compression" value="$(arg arg_enable_depth_ir_compression)" />
+            <param name="param_enable_depth_ab_compression" value="$(arg arg_enable_depth_ab_compression)" />
             <param name="param_enable_output_image_compression" value="$(arg arg_enable_output_image_compression)" />
             <param name="param_ab_threshold" value="$(arg arg_ab_threshold)"/>
             <param name="param_confidence_threshold" value="$(arg arg_confidence_threshold)" />
             <param name="param_config_file_name_of_tof_sdk" value="$(arg arg_config_file_name_of_tof_sdk)" />
-            <param name="param_frame_type" value="$(arg arg_frame_type)"/>        
+            <param name="param_camera_mode" value="$(arg arg_camera_mode)"/>        
         </node>
 
         <!-- Transform of Camera Optical and Camera Base frame, position is same as camera base, only change in the rotation -->

@@ -82,8 +82,6 @@ void ADI3DToFSafetyBubbleDetector::updateDynamicReconfigureVariablesInputThread(
  */
 void ADI3DToFSafetyBubbleDetector::readInput()
 {
-  int frame_count = 0;
-
   while (!read_input_thread_abort_)
   {
     // ROS_INFO("Read loop");
@@ -136,7 +134,7 @@ void ADI3DToFSafetyBubbleDetector::readInput()
 
         // Frame read succesfully, compress the frames.
         PROFILE_FUNCTION_START(RVL_EnCodeDepth_IRImg)
-        if (enable_depth_ir_compression_)
+        if (enable_depth_ab_compression_)
         {
           compressed_depth_image_transport::RvlCodec rvl;
           unsigned short* raw_depth_frame = new_frame->getDepthFrame();
@@ -146,11 +144,11 @@ void ADI3DToFSafetyBubbleDetector::readInput()
           new_frame->setCompressedDepthFrameSize(compressed_size_depth_frame);
 
           // IR
-          unsigned short* raw_ir_frame = new_frame->getIRFrame();
-          unsigned char* compressed_ir_frame = new_frame->getCompressedIRFrame();
-          int compressed_size_ir_frame =
-              rvl.CompressRVL(&raw_ir_frame[0], &compressed_ir_frame[0], image_width_ * image_height_);
-          new_frame->setCompressedIRFrameSize(compressed_size_ir_frame);
+          unsigned short* raw_ab_frame = new_frame->getIRFrame();
+          unsigned char* compressed_ab_frame = new_frame->getCompressedIRFrame();
+          int compressed_size_ab_frame =
+              rvl.CompressRVL(&raw_ab_frame[0], &compressed_ab_frame[0], image_width_ * image_height_);
+          new_frame->setCompressedIRFrameSize(compressed_size_ab_frame);
         }
         PROFILE_FUNCTION_START(RVL_EnCodeDepth_IRImg)
       }
@@ -177,7 +175,7 @@ void ADI3DToFSafetyBubbleDetector::readInput()
       std::cout << "Overwrite buffer" << std::endl;
       // If the Queue is full, then overwrite the last buffer with the latest frame
       input_thread_mtx_.lock();
-      ADTF31xxSensorFrameInfo* last_node = (ADTF31xxSensorFrameInfo*)input_frames_queue_.back();
+      __attribute__((unused)) ADTF31xxSensorFrameInfo* last_node = (ADTF31xxSensorFrameInfo*)input_frames_queue_.back();
       input_thread_mtx_.unlock();
       last_node = new_frame;
       delete new_frame;

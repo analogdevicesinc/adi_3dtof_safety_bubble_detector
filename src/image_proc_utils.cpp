@@ -80,8 +80,7 @@ void ImageProcUtils::transformFrame(ADIImage* in_img, ADIImage* out_img, CameraI
       int min_x = img_width;
       int min_y = img_height;
       int max_x = 0;
-      int max_y = 0;
-      short* xyz_frame_org = xyz_frame;
+      int max_y = 0;      
       float* rot_matrix = dst_extrinsics->rotation_matrix;
       float* trans_matrix = dst_extrinsics->translation_matrix;
       float* cam_matrix = dst_intrinsics->camera_matrix;
@@ -141,7 +140,7 @@ void ImageProcUtils::transformFrame(ADIImage* in_img, ADIImage* out_img, CameraI
       out_roi->x = std::max(0, min_x);
       out_roi->y = std::max(0, min_y);
       out_roi->width = std::min(std::max(0, (max_x - out_roi->x) + 1), img_width);
-      out_roi->height = std::min(std::max(0, (max_y - out_roi->y) + 1), img_width);
+      out_roi->height = std::min(std::max(0, (max_y - out_roi->y) + 1), img_height);
     }
   }
 }
@@ -251,7 +250,7 @@ void ImageProcUtils::transformFrameWithFloorRemoval(
       out_roi->x = std::max(0, min_x);
       out_roi->y = std::max(0, min_y);
       out_roi->width = std::min(std::max(0, (max_x - out_roi->x) + 1), img_width);
-      out_roi->height = std::min(std::max(0, (max_y - out_roi->y) + 1), img_width);
+      out_roi->height = std::min(std::max(0, (max_y - out_roi->y) + 1), img_height);
     }
   }
 }

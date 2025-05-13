@@ -145,11 +145,11 @@ void ADI3DToFSafetyBubbleDetector::publishPointCloud(short* xyz_frame)
  * @brief This function publishes depth image , ir image, point-cloud and camera info.
  *
  * @param depth_frame - Pointer to the depth frame buffer
- * @param ir_frame - Pointer to the ir frame buffer
+ * @param ab_frame - Pointer to the ir frame buffer
  * @param vcam_depth_frame - Pointer to the Virtual camera buffer
  * @param xyz_frame - Pointer to the xyz frame buffer
  */
-void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned short* depth_frame, unsigned short* ir_frame,
+void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned short* depth_frame, unsigned short* ab_frame,
                                                              unsigned short* vcam_depth_frame, short* /*xyz_frame*/)
 {
   // Publish image as Ros message
@@ -157,12 +157,12 @@ void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned short* dep
 
   // convert to 16 bit depth and IR image of CV format.
   m_disp_image_depth = cv::Mat(image_height_, image_width_, CV_16UC1, depth_frame);
-  m_disp_image_ir = cv::Mat(image_height_, image_width_, CV_16UC1, ir_frame);
+  m_disp_image_ir = cv::Mat(image_height_, image_width_, CV_16UC1, ab_frame);
   m_disp_virtual_depth = cv::Mat(image_height_, image_width_, CV_16UC1, vcam_depth_frame);
 
   fillAndPublishCameraInfo(optical_camera_link_, depth_info_publisher_);
   publishImageAsRosMsg(m_disp_image_depth, "mono16", optical_camera_link_, depth_image_publisher_, false);
-  publishImageAsRosMsg(m_disp_image_ir, "mono16", optical_camera_link_, ir_image_publisher_, false);
+  publishImageAsRosMsg(m_disp_image_ir, "mono16", optical_camera_link_, ab_image_publisher_, false);
 
   // fillAndPublishCameraInfo(virtual_camera_link_, vcam_info_publisher_);
   // publishImageAsRosMsg(m_disp_virtual_depth, "mono16", virtual_camera_link_, vcam_depth_image_publisher_,
@@ -177,21 +177,21 @@ void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned short* dep
  *
  * @param compressed_depth_frame - Pointer to the depth frame buffer
  * @param compressed_depth_frame_size - Size of the compressed buffer
- * @param compressed_ir_frame - Pointer to the ir frame buffer
- * @param compressed_ir_frame_size - Size of the compressed buffer
+ * @param compressed_ab_frame - Pointer to the ir frame buffer
+ * @param compressed_ab_frame_size - Size of the compressed buffer
  */
 void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned char* compressed_depth_frame,
                                                              int compressed_depth_frame_size,
-                                                             unsigned char* compressed_ir_frame,
-                                                             int compressed_ir_frame_size)
+                                                             unsigned char* compressed_ab_frame,
+                                                             int compressed_ab_frame_size)
 {
   fillAndPublishCameraInfo(optical_camera_link_, depth_info_publisher_);
 
   publishRVLCompressedImageAsRosMsg(compressed_depth_frame, compressed_depth_frame_size, "mono16", optical_camera_link_,
                                     depth_image_publisher_);
 
-  publishRVLCompressedImageAsRosMsg(compressed_ir_frame, compressed_ir_frame_size, "mono16", optical_camera_link_,
-                                    ir_image_publisher_);
+  publishRVLCompressedImageAsRosMsg(compressed_ab_frame, compressed_ab_frame_size, "mono16", optical_camera_link_,
+                                    ab_image_publisher_);
 }
 
 /**

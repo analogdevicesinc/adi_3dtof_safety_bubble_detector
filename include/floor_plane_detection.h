@@ -7,7 +7,11 @@ and its licensors.
 #ifndef FLOOR_PLANE_DETECTION_H
 #define FLOOR_PLANE_DETECTION_H
 
+//Supress the warnings from the external library
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wreorder"
 #include "custom_sac_segmentation.h"
+#pragma GCC diagnostic pop
 
 enum FilterFlag
 {

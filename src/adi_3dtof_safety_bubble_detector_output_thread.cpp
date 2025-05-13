@@ -43,7 +43,7 @@ void ADI3DToFSafetyBubbleDetector::safetyBubbleDetectorIOThreadPushOutputNode(
   }
   else
   {
-    ADI3DToFSafetyBubbleDetectorOutputInfo* last_node = nullptr;
+    __attribute__((unused))  ADI3DToFSafetyBubbleDetectorOutputInfo* last_node = nullptr;
     // Replace the last item with the current one.
     output_thread_mtx_.lock();
     last_node = (ADI3DToFSafetyBubbleDetectorOutputInfo*)output_node_queue_.back();
@@ -94,14 +94,14 @@ void ADI3DToFSafetyBubbleDetector::processOutput()
       PROFILE_FUNCTION_START(Publish_CompressImg)
 
       // Publish other debug images
-      if (enable_depth_ir_compression_)
+      if (enable_depth_ab_compression_)
       {
         publishImageAndCameraInfo(new_frame->compressed_depth_frame_, new_frame->compressed_depth_frame_size_,
-                                  new_frame->compressed_ir_frame_, new_frame->compressed_ir_frame_size_);
+                                  new_frame->compressed_ab_frame_, new_frame->compressed_ab_frame_size_);
       }
       else
       {
-        publishImageAndCameraInfo(new_frame->depth_frame_with_floor_, new_frame->ir_frame_,
+        publishImageAndCameraInfo(new_frame->depth_frame_with_floor_, new_frame->ab_frame_,
                                   new_frame->vcam_depth_frame_, new_frame->xyz_frame_);
       }
 

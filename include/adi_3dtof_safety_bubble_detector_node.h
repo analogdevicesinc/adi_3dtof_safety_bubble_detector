@@ -105,8 +105,8 @@ public:
     nh.param<int>("param_enable_ransac_floor_detection", enable_ransac_floor_detection, 1);
 
     // enable option to publish depth and ir compressed images
-    int enable_depth_ir_compression;
-    nh.param<int>("param_enable_depth_ir_compression", enable_depth_ir_compression, 0);
+    int enable_depth_ab_compression;
+    nh.param<int>("param_enable_depth_ab_compression", enable_depth_ab_compression, 0);
 
     // enable option to publish compressed output image.
     int enable_output_image_compression;
@@ -157,9 +157,12 @@ public:
     std::string config_file_name_of_tof_sdk;
     nh.param<std::string>("param_config_file_name_of_tof_sdk", config_file_name_of_tof_sdk, "no name");
 
-    // frame type supported in TOF SDK
-    std::string frame_type;
-    nh.param<std::string>("param_frame_type", frame_type, "no name");
+    // camera mode supported in TOF SDK
+    int camera_mode;
+    nh.param<int>("param_camera_mode", camera_mode, 4);
+
+    std::string input_sensor_ip;
+    nh.param<std::string>("param_input_sensor_ip", input_sensor_ip, "no name");
 
     camera_link_ = std::move(camera_link);
     optical_camera_link_ = std::move(optical_camera_link);
@@ -170,13 +173,14 @@ public:
     input_sensor_mode_ = input_sensor_mode;
     output_sensor_mode_ = output_sensor_mode;
     input_file_name_or_ros_topic_prefix_name_ = std::move(input_file_name_or_ros_topic_prefix_name);
+    input_sensor_ip_ = std::move(input_sensor_ip);
     fallback_floor_height_offset_mtr_ = 0.1f;
     virtual_camera_height_mtr_ = virtual_camera_height_mtr;
     frame_number_ = 0;
     safety_zone_radius_pixels_ = 0;
     enable_ransac_floor_detection_ = (enable_ransac_floor_detection == 1) ? true : false;
     enable_floor_paint_ = (enable_floor_paint == 1) ? true : false;
-    enable_depth_ir_compression_ = (enable_depth_ir_compression == 1) ? true : false;
+    enable_depth_ab_compression_ = (enable_depth_ab_compression == 1) ? true : false;
     enable_output_image_compression_ = (enable_output_image_compression == 1) ? true : false;
     enable_safety_bubble_zone_visualization_ = (enable_safety_bubble_zone_visualization == 1) ? true : false;
     ransac_distance_threshold_mtr_ = ransac_distance_threshold_mtr;
@@ -190,17 +194,23 @@ public:
     input_sensor_ = InputSensorFactory::getInputSensor(input_sensor_mode_);
 
     // Open the sensor
+    if (input_sensor_mode_ != 3)
+    {
+      // If the mode is not ADTF31xx sensor over Network, then the ip should be set to ""
+      input_sensor_ip_.clear();
+    }
+
+    // Open the sensor
     input_sensor_->openSensor(input_file_name_or_ros_topic_prefix_name_, input_image_width, input_image_height,
-                              processing_scale, config_file_name_of_tof_sdk);
+                              config_file_name_of_tof_sdk, input_sensor_ip_);
     if (!input_sensor_->isOpened())
     {
       ROS_ERROR("Could not open the sensor %s", input_file_name_or_ros_topic_prefix_name_.c_str());
       shutDownAllNodes();
     }
-    processing_scale_ = processing_scale;
 
     // Configure the sensor
-    input_sensor_->configureSensor(frame_type);
+    input_sensor_->configureSensor(camera_mode);
     image_width_ = input_sensor_->getFrameWidth();
     image_height_ = input_sensor_->getFrameHeight();
 
@@ -273,15 +283,15 @@ public:
     }
 
     // Input and Intermediate Debug Images
-    if (enable_depth_ir_compression == true)
+    if (enable_depth_ab_compression == true)
     {
       depth_image_publisher_ = this->advertise<sensor_msgs::CompressedImage>("depth_image/compressedDepth", 10);
-      ir_image_publisher_ = this->advertise<sensor_msgs::CompressedImage>("ir_image/compressedDepth", 10);
+      ab_image_publisher_ = this->advertise<sensor_msgs::CompressedImage>("ab_image/compressedDepth", 10);
     }
     else
     {
       depth_image_publisher_ = this->advertise<sensor_msgs::Image>("depth_image", 10);
-      ir_image_publisher_ = this->advertise<sensor_msgs::Image>("ir_image", 10);
+      ab_image_publisher_ = this->advertise<sensor_msgs::Image>("ab_image", 10);
     }
     // xyz_image_publisher_ = this->advertise<sensor_msgs::PointCloud2>("point_cloud", 10);
     // vcam_depth_image_publisher_ = this->advertise<sensor_msgs::Image>("vcam_depth_image", 10);
@@ -296,7 +306,7 @@ public:
                                 discard_distance_threshold_mtr_, camera_height_mtr_);
 
     // For File-io, we do not want to miss any frame, so increasing the queue size.
-    if ((input_sensor_mode_ != 0) && (input_sensor_mode_ != 3))
+    if ((input_sensor_mode_ != 0) && (input_sensor_mode_ != 3) && (input_sensor_mode_ != 4))
     {
       max_input_queue_length_ = 100;
       max_output_queue_length_ = 100;
@@ -374,7 +384,7 @@ private:
   float virtual_camera_height_mtr_;
   int input_sensor_mode_;
   int output_sensor_mode_;
-  bool enable_depth_ir_compression_;
+  bool enable_depth_ab_compression_;
   bool enable_output_image_compression_;
   bool compute_point_cloud_enable_ = false;
   int image_width_;
@@ -383,6 +393,7 @@ private:
   int ab_threshold_ = 10;
   int confidence_threshold_ = 10;
   std::string input_file_name_or_ros_topic_prefix_name_;
+  std::string input_sensor_ip_;
   std::string output_file_name_;
   tf2_ros::Buffer vcam_tf_buffer_;
   tf2_ros::TransformListener* vcam_tf_listener_;
@@ -393,7 +404,7 @@ private:
   sensor_msgs::CameraInfo cam_info_msg_;
   unsigned short* depth_frame_ = nullptr;
   unsigned short* depth_frame_with_floor_ = nullptr;
-  unsigned short* ir_frame_ = nullptr;
+  unsigned short* ab_frame_ = nullptr;
   short* xyz_frame_ = nullptr;
   short* rotated_xyz_frame_ = nullptr;
   unsigned short* vcam_depth_frame_ = nullptr;
@@ -403,7 +414,7 @@ private:
   ros::Publisher object_detected_publisher_;
   ros::Publisher out_image_publisher_;
   ros::Publisher depth_image_publisher_;
-  ros::Publisher ir_image_publisher_;
+  ros::Publisher ab_image_publisher_;
   ros::Publisher xyz_image_publisher_;
   ros::Publisher vcam_depth_image_publisher_;
   ros::Publisher depth_info_publisher_;
@@ -425,9 +436,9 @@ private:
   bool enable_safety_bubble_zone_visualization_;
 
   unsigned char* compressed_depth_frame_ = nullptr;
-  unsigned char* compressed_ir_frame_ = nullptr;
+  unsigned char* compressed_ab_frame_ = nullptr;
   int compressed_depth_frame_size_ = 0;
-  int compressed_ir_frame_size_ = 0;
+  int compressed_ab_frame_size_ = 0;
 
   /*Floor Detection Variables*/
   /**
@@ -577,11 +588,11 @@ private:
 
   void publishPointCloud(short* xyz_frame);
 
-  void publishImageAndCameraInfo(unsigned short* depth_frame, unsigned short* ir_frame,
+  void publishImageAndCameraInfo(unsigned short* depth_frame, unsigned short* ab_frame,
                                  unsigned short* vcam_depth_frame, short* xyz_frame);
 
   void publishImageAndCameraInfo(unsigned char* compressed_depth_frame, int compressed_depth_frame_size,
-                                 unsigned char* compressed_ir_frame, int compressed_ir_frame_size);
+                                 unsigned char* compressed_ab_frame, int compressed_ab_frame_size);
 
   int setZoneRadius();
 
@@ -608,12 +619,12 @@ private:
     // actual image resolution.
     float scale = 1024 / image_width_;
 
-    camera_intrinsics->camera_matrix[0] = 785.0f;
+    camera_intrinsics->camera_matrix[0] = depth_intrinsics_.camera_matrix[0];
     camera_intrinsics->camera_matrix[1] = 0.0f;
-    camera_intrinsics->camera_matrix[2] = 512.0f;
+    camera_intrinsics->camera_matrix[2] = depth_intrinsics_.camera_matrix[2];
     camera_intrinsics->camera_matrix[3] = 0.0f;
-    camera_intrinsics->camera_matrix[4] = 785.0f;
-    camera_intrinsics->camera_matrix[5] = 512.0f;
+    camera_intrinsics->camera_matrix[4] = depth_intrinsics_.camera_matrix[4];
+    camera_intrinsics->camera_matrix[5] = depth_intrinsics_.camera_matrix[5];
     camera_intrinsics->camera_matrix[6] = 0.0f;
     camera_intrinsics->camera_matrix[7] = 0.0f;
     camera_intrinsics->camera_matrix[8] = 1.0f;
@@ -625,12 +636,6 @@ private:
     camera_intrinsics->distortion_coeffs[5] = 0.0f;
     camera_intrinsics->distortion_coeffs[6] = 0.0f;
     camera_intrinsics->distortion_coeffs[7] = 0.0f;
-
-    // Scale
-    camera_intrinsics->camera_matrix[0] /= scale;
-    camera_intrinsics->camera_matrix[2] /= scale;
-    camera_intrinsics->camera_matrix[4] /= scale;
-    camera_intrinsics->camera_matrix[5] /= scale;
 
     return;
   }
