@@ -126,8 +126,10 @@ Pre-requisites for using this package:
 >    The ROS Humble and dependent packages are already installed in the EVAL-ADTF3175D-NXZ image and the source code for the *adi_3dtof_safety_bubble_detector* is present in `/home/analog/ros2_ws/src/` folder. The package is also pre-built, hence there is no need to build the package.  
 >    If the source files are modified, then use the following commands to build the package.
 >    ```bash
+>    $ source /opt/ros/humble/install/setup.bash
 >    $ cd ~/ros2_ws/  
->    $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1 -DNXP=1
+>    $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DNXP=1 --parallel-workers 1
+>    $ source install/setup.bash 
 >    ```
 >    > Note: `/home/analog/ros2_ws/` is set up as the ros2 workspace and this workspace is already sourced in the `~/.bashrc`.
 >    > **:warning: <span style="color:red">If the above command is stuck in the console then execute below commands**</span> 
