@@ -116,10 +116,6 @@ def generate_launch_description():
     arg_camera_mode_desc = DeclareLaunchArgument(
         'arg_camera_mode', default_value="3")
 		
-    # Modifying the path to ini file in json file only if input sensor mode is camera
-    if arg_input_sensor_mode_desc.default_value[0].text == '0':
-        modify_ini_path_in_json_file(arg_config_file_name_of_tof_sdk_desc.default_value[0].text) 
-
     # Arguments for virtual camera transformation wrt map when virtual camera looking down(downward Z) 
     # NOTE: These values should not be changed
     var_virtual_camera_base_frame = "virtual_camera_frame"

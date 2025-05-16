@@ -131,7 +131,7 @@ Pre-requisites for using this package:
 >    $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DNXP=1 --parallel-workers 1
 >    $ source install/setup.bash 
 >    ```
->    > Note: `/home/analog/ros2_ws/` is set up as the ros2 workspace and this workspace is already sourced in the `~/.bashrc`.
+>    > Note: `/home/analog/ros2_ws/` is set up as the ros2 workspace.
 >    > **:warning: <span style="color:red">If the above command is stuck in the console then execute below commands**</span> 
 >    > ```bash
 >    > $ cd ~/ros2_ws/build/adi_3dtof_safety_bubble_detector 
