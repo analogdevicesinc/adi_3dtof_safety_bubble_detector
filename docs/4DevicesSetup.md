@@ -134,14 +134,14 @@ The topics names are
 ```
 This node can be run using the following command in a new terminal. 
 
-```
-$ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_four_camera_host_launch.py
+```bash
+$ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_four_camera_host_launch.py
 ```
 
 :memo:
 >- Refer to the [Appendix](#appendix) section to build the package on the Host machine 
 >- Make sure that the ADI 3DToF Safety Bubble Detector node is already running on all the devices before running this node.
->- <span style="color:red">**Make sure that the Date/Time is correctly set for all the devices, this application makes use of the topic Timestamp for synchronization. Hence, if the time is not set properly the application will not run.**</span> 
+>- <span style="color:red">**Make sure that the Date/Time is correctly set for all the devices, this application makes use of the topic Timestamp for synchronization. Hence, if the time is not set properly the application will not run. Once the Date/Time is set, please disable the network connection on the device to prevent it from sending ROS packets via the network layer. Maintaining the connection may result in inappropriate behavior.**</span> 
 >
 >- Ensure rmw settings are updated in all the Devices and the Host to support muti-sensor usecases
 >>```bash
@@ -161,24 +161,40 @@ $ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_f
 ---
 # Appendix
 
-1. Clone the repo and checkout the correct release branch/
-tag into catkin workspace directory
+1. Clone the repo and checkout the corect release branch/
+tag into ros workspace directory
 
     ```bash
     $ cd ~/ros2_ws/src
-    $ git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.0.0
+    $ git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.1.0
     ```
-2. Install dependencies:
+2. clone aditof SDK
+    ```bash
+    $ cd ~/ros2_ws/src
+    $ git clone https://github.com/analogdevicesinc/libaditof.git -b v6.0.1
+    ```
+3. Update submodules in aditof SDK
+    ```bash
+    $ cd ~/ros2_ws/src/libaditof
+    $ git submodule update --init --recursive
+    ```
+4. Install dependencies:
     ```bash
     $ cd ~/ros2_ws/
     $ rosdep install --from-paths src -y --ignore-src    
     ```
-3. Build the package
+5. Build the package
     ```bash
-    $ cd ~/ros2_ws/
-    $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DHOST_BUILD=TRUE
+    $ cd ~/ros2_ws
+    $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DSENSOR_CONNECTED=TRUE -DBUILD_SBD_STITCH_HOST_NODE=TRUE
     $ source install/setup.bash
     ```
+6. Link run time libraries
+    ```bash
+    $ echo "export LD_LIBRARY_PATH=~/catkin_ws/install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
+    $ source ~/.bashrc
+    ```
+    
 For details on the parameters please refer to the launch files present in the ```launch/``` folder.
 <br>  
 <br>
