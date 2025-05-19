@@ -83,7 +83,7 @@ DESTINATION lib/${PROJECT_NAME}
 
 
 #This is the executable to be run on the Host to stitch the output images
-if(BUILD_EXAMPLE_NODE)
+if(BUILD_SBD_STITCH_HOST_NODE)
   add_executable(adi_3dtof_safety_bubble_detector_stitch_host_node src/adi_3dtof_safety_bubble_detector_stitch_host.cpp src/image_proc_utils.cpp)
 
   ament_target_dependencies(adi_3dtof_safety_bubble_detector_stitch_host_node rclcpp std_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs pcl_ros cv_bridge image_geometry image_transport compressed_depth_image_transport OpenCV)
