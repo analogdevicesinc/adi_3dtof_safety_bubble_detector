@@ -124,14 +124,16 @@ Assumptions before building this package:
     >  - https://ubuntuforums.org/showthread.php?t=862620  
     >  - https://timetoolsltd.com/ntp/how-to-install-and-configure-ntp-on-linux/  
     >  - https://askubuntu.com/questions/14558/how-do-i-setup-a-local-ntp-server
-    > 2. The ROS Noetic and dependent packages are already installed in the EVAL-ADTF3175D-NXZ image and the source code for the *adi_3dtof_safety_bubble_detector* is present in `/home/analog/catkin_ws/src/` folder. The package is also pre-built, hence there is no need to build the package.  
-    >    If the source files are modified, then use the following commands to build the package.  
-    >    ```bash
-    >    $ cd ~/catkin_ws/  
-    >    $ catkin_make -DCMAKE_BUILD_TYPE=RELEASE -DSENSOR_CONNECTED=TRUE -DNXP=1 -j2  
-    >    ```
-    >
-    >    Note: `/home/analog/catkin_ws/` is set up as the catkin workspace and this workspace is already sourced in the `~/.bashrc`
+    
+ 7. The ROS Noetic and dependent packages are already installed in the EVAL-ADTF3175D-NXZ image and the source code for the *adi_3dtof_safety_bubble_detector* is present in `/home/analog/catkin_ws/src/` folder. The package is also pre-built, hence there is no need to build the package.  
+    If the source files are modified, then use the following commands to build the package.  
+    ```bash
+    $ cd ~/catkin_ws/  
+    $ catkin config --install
+    $ catkin build -DCMAKE_BUILD_TYPE=RELEASE -DSENSOR_CONNECTED=TRUE -DNXP=1 -j1  
+    ```
+
+    Note: `/home/analog/catkin_ws/` is set up as the catkin workspace and this workspace is already sourced in the `~/.bashrc`
 
 ###	Running the ROS Node:
 

@@ -137,37 +137,52 @@ The topics names are
 ```
 This node can be run using the following command in a new terminal. 
 
-```
-$roslaunch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_four_camera_host.launch
+``` bash
+$ roslaunch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_four_camera_host.launch
 ```
 
 :memo:
 >- Refer to the [Appendix](#appendix) section to build the package on the Host machine 
 >- Make sure that the ADI 3DToF Safety Bubble Detector node is already running on all the devices before running this node.
->- <span style="color:red">**Make sure that the Date/Time is correctly set for all the devices, this application makes use of the topic Timestamp for synchronization. Hence, if the time is not set properly the application will not run.**</span> 
+>- <span style="color:red">**Make sure that the Date/Time is correctly set for all the devices, this application makes use of the topic Timestamp for synchronization. Hence, if the time is not set properly the application will not run. Once the Date/Time is set, please disable the network connection on the device to prevent it from sending ROS packets via the network layer. Maintaining the connection may result in inappropriate behavior. **</span> 
 
 
 ---
 # Appendix
 
-1. Clone the repo and checkout the correct release branch/
+1. Clone the repo and checkout the corect release branch/
 tag into catkin workspace directory
 
     ```bash
     $ cd ~/catkin_ws/src
-    $ git clone tbd_link_to_repo.git -b v1.0.0
+    $ git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v1.2.0
     ```
-2. Install dependencies:
+2. clone aditof SDK
+    ```bash
+    $ cd ~/catkin_ws/src
+    $ git clone https://github.com/analogdevicesinc/libaditof.git -b v6.0.1
+    ```
+3. Update submodules in aditof SDK
+    ```bash
+    $ cd ~/catkin_ws/src/libaditof
+    $ git submodule update --init --recursive
+    ```
+4. Install dependencies:
     ```bash
     $ cd ~/catkin_ws/
     $ rosdep install --from-paths src -y --ignore-src    
     ```
-3. Build the package
+5. Build the package
     ```bash
-    $ cd ~/catkin_ws/src
-    $ catkin_make -DCMAKE_BUILD_TYPE=RELEASE -j2
+    $ cd ~/catkin_ws/
+    $ catkin build -DCMAKE_BUILD_TYPE=RELEASE -DSENSOR_CONNECTED=TRUE -DBUILD_SBD_STITCH_HOST_NODE=TRUE -j2
     $ source devel/setup.bash
     ```
+6. Link run time libraries
+    ```bash
+    $ echo "export LD_LIBRARY_PATH=~/catkin_ws/install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
+    $ source ~/.bashrc
+    ```  
 For details on the parameters please refer to the launch files present in the ```launch/``` folder.
 <br>  
 <br>
