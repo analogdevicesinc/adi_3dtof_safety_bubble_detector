@@ -320,17 +320,12 @@ tag into ros workspace directory
     $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DSENSOR_CONNECTED=TRUE -DBUILD_SBD_STITCH_HOST_NODE=TRUE
     $ source install/setup.bash
     ```
-6. Link run time libraries
-    ```bash
-    $ echo "export LD_LIBRARY_PATH=~/catkin_ws/install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
-    $ source ~/.bashrc
-    ```
-7. To run the `adi_3dtof_safety_bubble_detector_node` in File-IO mode, we need to make some changes in the launch file. Change the following parameters in launch file.
+6. To run the `adi_3dtof_safety_bubble_detector_node` in File-IO mode, we need to make some changes in the launch file. Change the following parameters in launch file.
 
     `arg_input_sensor_mode` to be set to *2*  
     `arg_input_file_name_or_ros_topic_prefix_name` to be set to the input file name
 
-8. After updating the launch file, run the ros2 launch with the updated launch file.
+7. After updating the launch file, run the ros2 launch with the updated launch file.
     ```bash
     $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera_launch.py
     ```
