@@ -292,10 +292,6 @@ public:
     confidence_threshold_ =
       this->get_parameter("param_confidence_threshold").get_parameter_value().get<int>();
 
-    int processing_scale;
-    processing_scale =
-      this->get_parameter("param_processing_scale").get_parameter_value().get<int>();
-
     int input_image_width;
     input_image_width =
       this->get_parameter("param_input_image_width").get_parameter_value().get<int>();
