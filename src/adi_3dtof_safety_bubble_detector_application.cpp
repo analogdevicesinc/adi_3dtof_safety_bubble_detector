@@ -11,10 +11,10 @@ and its licensors.
  * @param frame_id  frame_id of camera_info
  * @param publisher This is Ros publisher
  */
-void ADI3DToFSafetyBubbleDetector::fillAndPublishCameraInfo(const std::string& frame_id,
-                                                            const ros::Publisher& publisher)
+void ADI3DToFSafetyBubbleDetector::fillAndPublishCameraInfo(
+  const std::string & frame_id,
+  const rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr publisher)
 {
-  cam_info_msg_.header.seq = input_sensor_->getFrameCounter();
   cam_info_msg_.header.stamp = curr_frame_timestamp_;
   cam_info_msg_.header.frame_id = frame_id;
 
@@ -23,33 +23,31 @@ void ADI3DToFSafetyBubbleDetector::fillAndPublishCameraInfo(const std::string& f
 
   cam_info_msg_.distortion_model = sensor_msgs::distortion_models::RATIONAL_POLYNOMIAL;
 
-  cam_info_msg_.K.fill(0.0f);
-  cam_info_msg_.K[0] = depth_intrinsics_.camera_matrix[0];
-  cam_info_msg_.K[2] = depth_intrinsics_.camera_matrix[2];
-  cam_info_msg_.K[4] = depth_intrinsics_.camera_matrix[4];
-  cam_info_msg_.K[5] = depth_intrinsics_.camera_matrix[5];
-  cam_info_msg_.K[8] = 1.0f;
+  cam_info_msg_.k.fill(0.0f);
+  cam_info_msg_.k[0] = depth_intrinsics_.camera_matrix[0];
+  cam_info_msg_.k[2] = depth_intrinsics_.camera_matrix[2];
+  cam_info_msg_.k[4] = depth_intrinsics_.camera_matrix[4];
+  cam_info_msg_.k[5] = depth_intrinsics_.camera_matrix[5];
+  cam_info_msg_.k[8] = 1.0f;
 
-  cam_info_msg_.P.fill(0.0);
-  cam_info_msg_.P[0] = depth_intrinsics_.camera_matrix[0];
-  cam_info_msg_.P[2] = depth_intrinsics_.camera_matrix[2];
-  cam_info_msg_.P[3] = depth_extrinsics_.translation_matrix[0];
-  cam_info_msg_.P[5] = depth_intrinsics_.camera_matrix[4];
-  cam_info_msg_.P[6] = depth_intrinsics_.camera_matrix[5];
-  cam_info_msg_.P[7] = depth_extrinsics_.translation_matrix[1];
-  cam_info_msg_.P[10] = 1.0f;
-  cam_info_msg_.P[11] = depth_extrinsics_.translation_matrix[2];
+  cam_info_msg_.p.fill(0.0);
+  cam_info_msg_.p[0] = depth_intrinsics_.camera_matrix[0];
+  cam_info_msg_.p[2] = depth_intrinsics_.camera_matrix[2];
+  cam_info_msg_.p[3] = depth_extrinsics_.translation_matrix[0];
+  cam_info_msg_.p[5] = depth_intrinsics_.camera_matrix[4];
+  cam_info_msg_.p[6] = depth_intrinsics_.camera_matrix[5];
+  cam_info_msg_.p[7] = depth_extrinsics_.translation_matrix[1];
+  cam_info_msg_.p[10] = 1.0f;
+  cam_info_msg_.p[11] = depth_extrinsics_.translation_matrix[2];
 
-  cam_info_msg_.D.resize(0);
-  for (float distortion_coeff : depth_intrinsics_.distortion_coeffs)
-  {
-    cam_info_msg_.D.push_back(distortion_coeff);
+  cam_info_msg_.d.resize(0);
+  for (float distortion_coeff : depth_intrinsics_.distortion_coeffs) {
+    cam_info_msg_.d.push_back(distortion_coeff);
   }
 
-  cam_info_msg_.R.fill(0.0f);
-  for (int i = 0; i < 9; i++)
-  {
-    cam_info_msg_.R[i] = depth_extrinsics_.rotation_matrix[i];
+  cam_info_msg_.r.fill(0.0f);
+  for (int i = 0; i < 9; i++) {
+    cam_info_msg_.r[i] = depth_extrinsics_.rotation_matrix[i];
   }
 
   cam_info_msg_.binning_x = 0;
@@ -60,7 +58,7 @@ void ADI3DToFSafetyBubbleDetector::fillAndPublishCameraInfo(const std::string& f
   cam_info_msg_.roi.x_offset = 0;
   cam_info_msg_.roi.y_offset = 0;
 
-  publisher.publish(cam_info_msg_);
+  publisher->publish(cam_info_msg_);
 }
 
 /**
@@ -70,31 +68,44 @@ void ADI3DToFSafetyBubbleDetector::fillAndPublishCameraInfo(const std::string& f
  * @param encoding_type number of bits used to represent one pixel of image.
  * @param frame_id frame id of image
  * @param publisher ROS publisher handle
- * @param enable_image_compression boolean decides image compression
  */
-void ADI3DToFSafetyBubbleDetector::publishImageAsRosMsg(cv::Mat img, const std::string& encoding_type,
-                                                        std::string frame_id, const ros::Publisher& publisher,
-                                                        bool enable_image_compression)
+void ADI3DToFSafetyBubbleDetector::publishImageAsRosMsg(
+  cv::Mat img, const std::string & encoding_type, std::string frame_id,
+  const rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher)
 {
   cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
 
   cv_ptr->encoding = encoding_type;
-  cv_ptr->header.seq = input_sensor_->getFrameCounter();
   cv_ptr->header.stamp = curr_frame_timestamp_;
   cv_ptr->header.frame_id = std::move(frame_id);
   cv_ptr->image = std::move(img);
 
-  if (enable_image_compression)
-  {
-    // We have to send compressed image.
-    publisher.publish(cv_ptr->toCompressedImageMsg());
-  }
-  else
-  {
-    publisher.publish(cv_ptr->toImageMsg());
-  }
+  publisher->publish(*cv_ptr->toImageMsg());
 }
 
+/**
+ * @brief This function publishes a image(of cv::Mat() type) as Ros message.
+ *
+ * @param img Input image
+ * @param encoding_type number of bits used to represent one pixel of image.
+ * @param frame_id frame id of image
+ * @param publisher ROS publisher handle
+ */
+void ADI3DToFSafetyBubbleDetector::publishCompressedImageAsRosMsg(
+  cv::Mat img, const std::string & encoding_type, std::string frame_id,
+  const rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr publisher)
+{
+  cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
+
+  cv_ptr->encoding = encoding_type;
+  cv_ptr->header.stamp = curr_frame_timestamp_;
+  cv_ptr->header.frame_id = std::move(frame_id);
+  cv_ptr->image = std::move(img);
+
+  publisher->publish(*cv_ptr->toCompressedImageMsg());
+}
+
+#ifdef ENA_POINTCLOUD_PUBLISH
 /**
  * @brief This function publishes the point cloud
  *
@@ -102,11 +113,10 @@ void ADI3DToFSafetyBubbleDetector::publishImageAsRosMsg(cv::Mat img, const std::
  *
  * Note: Assumes that cam_info_msg_ is already populated
  */
-void ADI3DToFSafetyBubbleDetector::publishPointCloud(short* xyz_frame)
+void ADI3DToFSafetyBubbleDetector::publishPointCloud(short * xyz_frame)
 {
-  sensor_msgs::PointCloud2::Ptr pointcloud_msg(new sensor_msgs::PointCloud2);
+  sensor_msgs::msg::PointCloud2::Ptr pointcloud_msg(new sensor_msgs::msg::PointCloud2);
 
-  pointcloud_msg->header.seq = input_sensor_->getFrameCounter();
   pointcloud_msg->header.stamp = curr_frame_timestamp_;
   pointcloud_msg->header.frame_id = optical_camera_link_;
   pointcloud_msg->width = image_width_;
@@ -116,7 +126,7 @@ void ADI3DToFSafetyBubbleDetector::publishPointCloud(short* xyz_frame)
 
   // XYZ data from sensor.
   // This data is in 16 bpp format.
-  short* xyz_sensor_buf;
+  short * xyz_sensor_buf;
   xyz_sensor_buf = xyz_frame;
   sensor_msgs::PointCloud2Modifier pcd_modifier(*pointcloud_msg);
   pcd_modifier.setPointCloud2FieldsByString(1, "xyz");
@@ -124,10 +134,8 @@ void ADI3DToFSafetyBubbleDetector::publishPointCloud(short* xyz_frame)
   sensor_msgs::PointCloud2Iterator<float> iter_x(*pointcloud_msg, "x");
   sensor_msgs::PointCloud2Iterator<float> iter_y(*pointcloud_msg, "y");
   sensor_msgs::PointCloud2Iterator<float> iter_z(*pointcloud_msg, "z");
-  for (int i = 0; i < image_height_; i++)
-  {
-    for (int j = 0; j < image_width_; j++)
-    {
+  for (int i = 0; i < image_height_; i++) {
+    for (int j = 0; j < image_width_; j++) {
       *iter_x = (float)(*xyz_sensor_buf++) / 1000.0f;
       *iter_y = (float)(*xyz_sensor_buf++) / 1000.0f;
       *iter_z = (float)(*xyz_sensor_buf++) / 1000.0f;
@@ -138,37 +146,37 @@ void ADI3DToFSafetyBubbleDetector::publishPointCloud(short* xyz_frame)
   }
 
   // Publisher
-  xyz_image_publisher_.publish(pointcloud_msg);
+  xyz_image_publisher_->publish(*pointcloud_msg);
 }
+#endif /* ENA_POINTCLOUD_PUBLISH */
 
 /**
  * @brief This function publishes depth image , ir image, point-cloud and camera info.
  *
  * @param depth_frame - Pointer to the depth frame buffer
- * @param ir_frame - Pointer to the ir frame buffer
+ * @param ab_frame - Pointer to the ir frame buffer
  * @param vcam_depth_frame - Pointer to the Virtual camera buffer
  * @param xyz_frame - Pointer to the xyz frame buffer
  */
-void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned short* depth_frame, unsigned short* ir_frame,
-                                                             unsigned short* vcam_depth_frame, short* /*xyz_frame*/)
+void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(
+  unsigned short * depth_frame, unsigned short * ab_frame, unsigned short * vcam_depth_frame,
+  short * /*xyz_frame*/)
 {
   // Publish image as Ros message
   cv::Mat m_disp_image_depth, temp_depth, m_disp_image_ir, m_disp_virtual_depth;
 
   // convert to 16 bit depth and IR image of CV format.
   m_disp_image_depth = cv::Mat(image_height_, image_width_, CV_16UC1, depth_frame);
-  m_disp_image_ir = cv::Mat(image_height_, image_width_, CV_16UC1, ir_frame);
+  m_disp_image_ir = cv::Mat(image_height_, image_width_, CV_16UC1, ab_frame);
   m_disp_virtual_depth = cv::Mat(image_height_, image_width_, CV_16UC1, vcam_depth_frame);
 
   fillAndPublishCameraInfo(optical_camera_link_, depth_info_publisher_);
-  publishImageAsRosMsg(m_disp_image_depth, "mono16", optical_camera_link_, depth_image_publisher_, false);
-  publishImageAsRosMsg(m_disp_image_ir, "mono16", optical_camera_link_, ir_image_publisher_, false);
+  publishImageAsRosMsg(m_disp_image_depth, "mono16", optical_camera_link_, depth_image_publisher_);
+  publishImageAsRosMsg(m_disp_image_ir, "mono16", optical_camera_link_, ab_image_publisher_);
 
-  // fillAndPublishCameraInfo(virtual_camera_link_, vcam_info_publisher_);
-  // publishImageAsRosMsg(m_disp_virtual_depth, "mono16", virtual_camera_link_, vcam_depth_image_publisher_,
-  // false);
-
-  // publishPointCloud(xyz_frame);
+#ifdef ENA_POINTCLOUD_PUBLISH
+  publishPointCloud(xyz_frame);
+#endif /* ENA_POINTCLOUD_PUBLISH */
 }
 
 /**
@@ -177,21 +185,22 @@ void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned short* dep
  *
  * @param compressed_depth_frame - Pointer to the depth frame buffer
  * @param compressed_depth_frame_size - Size of the compressed buffer
- * @param compressed_ir_frame - Pointer to the ir frame buffer
- * @param compressed_ir_frame_size - Size of the compressed buffer
+ * @param compressed_ab_frame - Pointer to the ir frame buffer
+ * @param compressed_ab_frame_size - Size of the compressed buffer
  */
-void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned char* compressed_depth_frame,
-                                                             int compressed_depth_frame_size,
-                                                             unsigned char* compressed_ir_frame,
-                                                             int compressed_ir_frame_size)
+void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(
+  unsigned char * compressed_depth_frame, int compressed_depth_frame_size,
+  unsigned char * compressed_ab_frame, int compressed_ab_frame_size)
 {
   fillAndPublishCameraInfo(optical_camera_link_, depth_info_publisher_);
 
-  publishRVLCompressedImageAsRosMsg(compressed_depth_frame, compressed_depth_frame_size, "mono16", optical_camera_link_,
-                                    depth_image_publisher_);
+  publishRVLCompressedImageAsRosMsg(
+    compressed_depth_frame, compressed_depth_frame_size, "mono16", optical_camera_link_,
+    compressed_depth_image_publisher_);
 
-  publishRVLCompressedImageAsRosMsg(compressed_ir_frame, compressed_ir_frame_size, "mono16", optical_camera_link_,
-                                    ir_image_publisher_);
+  publishRVLCompressedImageAsRosMsg(
+    compressed_ab_frame, compressed_ab_frame_size, "mono16", optical_camera_link_,
+    compressed_ab_image_publisher_);
 }
 
 /**
@@ -203,8 +212,8 @@ void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(unsigned char* comp
  * @return Visualization output(cv::Mat() type)
  */
 cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
-    unsigned char* vcam_depth_image_floor_pixels_removed_8bpp, unsigned short* vcam_depth_frame_with_floor,
-    bool object_detected)
+  unsigned char * vcam_depth_image_floor_pixels_removed_8bpp,
+  unsigned short * vcam_depth_frame_with_floor, bool object_detected)
 {
   // Object to indicate the red zone inside the safety bubble.
   cv::Mat red_zone = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
@@ -212,15 +221,17 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
   // Object to indicate the green zone inside the safety bubble.
   cv::Mat green_zone = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
 
-  cv::Mat m_vcam_final_image =
-      cv::Mat(cv::Size(image_width_, image_height_), CV_8UC1, vcam_depth_image_floor_pixels_removed_8bpp);
+  cv::Mat m_vcam_final_image = cv::Mat(
+    cv::Size(image_width_, image_height_), CV_8UC1, vcam_depth_image_floor_pixels_removed_8bpp);
 
   cv::Mat m_vcam_final_image_roi =
-      m_vcam_final_image(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
+    m_vcam_final_image(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
   cv::Mat safety_bubble_zone_roi =
-      safety_bubble_zone_(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
-  cv::Mat red_zone_roi = red_zone(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
-  cv::Mat green_zone_roi = green_zone(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
+    safety_bubble_zone_(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
+  cv::Mat red_zone_roi =
+    red_zone(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
+  cv::Mat green_zone_roi =
+    green_zone(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
 
   cv::bitwise_and(m_vcam_final_image_roi, safety_bubble_zone_roi, red_zone_roi);
   cv::bitwise_xor(m_vcam_final_image_roi, red_zone_roi, green_zone_roi);
@@ -228,8 +239,7 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
   // Fill Blue channel with zero pixels.
   cv::Mat blue_channel = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
 
-  if (enable_floor_paint_)
-  {
+  if (enable_floor_paint_) {
     // OR with floor pixels to make the visualization better
     // Get separate masks of pixels inside and outside safety bubble.
     int scale_factor = 8192;
@@ -244,14 +254,11 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     out_img.bpp = 8;
     ImageProcUtils::convertTo8BppImage(&in_img, &out_img, scale_factor);
     m_vcam_final_image = cv::Mat(image_height_, image_width_, CV_8UC1, vcam_depth_frame_8bpp_);
-    for (int i = 0; i < image_height_; i++)
-    {
-      for (int j = 0; j < image_width_; j++)
-      {
-        if (m_vcam_final_image.at<unsigned char>(i, j) != 0)
-        {
-          if ((green_zone.at<unsigned char>(i, j) == 0) && (red_zone.at<unsigned char>(i, j) == 0))
-          {
+    for (int i = 0; i < image_height_; i++) {
+      for (int j = 0; j < image_width_; j++) {
+        if (m_vcam_final_image.at<unsigned char>(i, j) != 0) {
+          if (
+            (green_zone.at<unsigned char>(i, j) == 0) && (red_zone.at<unsigned char>(i, j) == 0)) {
             green_zone.at<unsigned char>(i, j) = 128;
             red_zone.at<unsigned char>(i, j) = 128;
             blue_channel.at<unsigned char>(i, j) = 128;
@@ -273,34 +280,19 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
   // A Box for indicating the detection status(green:empty, red/occupied)
   cv::Rect box = cv::Rect(8, 10, 20, 20);
   cv::Scalar color = cv::Scalar(0, 255, 0);
-  if (object_detected)
-  {
+  if (object_detected) {
     color = cv::Scalar(0, 0, 255);
   }
   cv::rectangle(out_visualization_image, box, color, -1, 8, 0);
 
-  if (enable_safety_bubble_zone_visualization_)
-  {
+  if (enable_safety_bubble_zone_visualization_) {
     double alpha = 0.12;
     // blend the overlay with the source image
-    cv::addWeighted(safety_bubble_zone_red_mask_, alpha, out_visualization_image, 1 - alpha, 0,
-                    out_visualization_image);
+    cv::addWeighted(
+      safety_bubble_zone_red_mask_, alpha, out_visualization_image, 1 - alpha, 0,
+      out_visualization_image);
   }
   return out_visualization_image;
-}
-
-/**
- *@brief This function shuts down all the active nodes
- *
- */
-void ADI3DToFSafetyBubbleDetector::shutDownAllNodes()
-{
-  int status = system("rosnode kill -a");
-  if (status < 0)
-  {
-    ROS_INFO_STREAM("Error in \"rosnode kill -a\": " << status);
-  }
-  ros::shutdown();
 }
 
 /**
@@ -312,87 +304,50 @@ void ADI3DToFSafetyBubbleDetector::shutDownAllNodes()
  * @param frame_id frame id of ros message
  * @param publisher ros image publisher
  */
-void ADI3DToFSafetyBubbleDetector::publishRVLCompressedImageAsRosMsg(unsigned char* compressed_img,
-                                                                     int compressed_img_size,
-                                                                     const std::string& encoding_type,
-                                                                     std::string frame_id,
-                                                                     const ros::Publisher& publisher)
+void ADI3DToFSafetyBubbleDetector::publishRVLCompressedImageAsRosMsg(
+  unsigned char * compressed_img, int compressed_img_size, const std::string & encoding_type,
+  std::string frame_id,
+  const rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr publisher)
 {
   cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
-  sensor_msgs::CompressedImage::Ptr compressed_payload_ptr(new sensor_msgs::CompressedImage());
+  sensor_msgs::msg::CompressedImage::SharedPtr compressed_payload_ptr(
+    new sensor_msgs::msg::CompressedImage());
 
   compressed_payload_ptr->format = encoding_type + ";compressedDepth rvl";
-  compressed_payload_ptr->header.seq = input_sensor_->getFrameCounter();
   compressed_payload_ptr->header.stamp = curr_frame_timestamp_;
   compressed_payload_ptr->header.frame_id = std::move(frame_id);
-  compressed_payload_ptr->data.resize(compressed_img_size + 8 + sizeof(compressed_depth_image_transport::ConfigHeader));
+  compressed_payload_ptr->data.resize(
+    compressed_img_size + 8 + sizeof(compressed_depth_image_transport::ConfigHeader));
 
   // Image compression configuration
-  compressed_depth_image_transport::ConfigHeader compressionConfiguration{};
-  compressionConfiguration.format = compressed_depth_image_transport::INV_DEPTH;
+  compressed_depth_image_transport::ConfigHeader compression_configuration{};
+  compression_configuration.format = compressed_depth_image_transport::INV_DEPTH;
 
   // Header of compressed image of image transport
-  float depthQuantization = 0;
-  float maximumDepth = 1;
+  float depth_quantization = 0;
+  float maximum_depth = 1;
 
   // Inverse depth quantization parameters
-  float depthQuantizationA = depthQuantization * (depthQuantization + 1.0f);
-  float depthQuantizationB = 1.0f - depthQuantizationA / maximumDepth;
+  float depth_quantization_a = depth_quantization * (depth_quantization + 1.0f);
+  float depth_quantization_b = 1.0f - depth_quantization_a / maximum_depth;
 
   // Add coding parameters to header
-  compressionConfiguration.depthParam[0] = depthQuantizationA;
-  compressionConfiguration.depthParam[1] = depthQuantizationB;
+  compression_configuration.depthParam[0] = depth_quantization_a;
+  compression_configuration.depthParam[1] = depth_quantization_b;
 
-  memcpy(&compressed_payload_ptr->data[0], &compressionConfiguration, sizeof(compressed_depth_image_transport::ConfigHeader));
-  memcpy(&compressed_payload_ptr->data[0] + sizeof(compressed_depth_image_transport::ConfigHeader), &image_width_,
-         sizeof(int));
-  memcpy(&compressed_payload_ptr->data[4] + sizeof(compressed_depth_image_transport::ConfigHeader), &image_height_,
-         sizeof(int));
+  memcpy(
+    &compressed_payload_ptr->data[0], &compression_configuration,
+    sizeof(compressed_depth_image_transport::ConfigHeader));
+  memcpy(
+    &compressed_payload_ptr->data[0] + sizeof(compressed_depth_image_transport::ConfigHeader),
+    &image_width_, sizeof(int));
+  memcpy(
+    &compressed_payload_ptr->data[4] + sizeof(compressed_depth_image_transport::ConfigHeader),
+    &image_height_, sizeof(int));
 
-  memcpy(&compressed_payload_ptr->data[8] + sizeof(compressed_depth_image_transport::ConfigHeader), compressed_img,
-         compressed_img_size);
+  memcpy(
+    &compressed_payload_ptr->data[8] + sizeof(compressed_depth_image_transport::ConfigHeader),
+    compressed_img, compressed_img_size);
 
-  publisher.publish(compressed_payload_ptr);
-}
-
-/**
- * @brief new values from dynamic reconfigure are copied to a struture variable here, actual update to individual
- * parameters happens in updateDynamicReconfigureVariablesInputThread and updateDynamicReconfigureVariablesProcessThread
- * functions.
- *
- * @param config Config parameters present in GUI
- * @param level Bit mask related to dynamic reconfigure callback
- */
-void ADI3DToFSafetyBubbleDetector::dynamicallyReconfigureVariables(
-    adi_3dtof_safety_bubble_detector::SafetyBubbleDetectorParamsConfig& config, uint32_t /*level*/)
-{
-  // update all the values in dynamic reconfigure.
-  dynamic_reconfigure_config_ = config;
-
-  ROS_INFO(
-      "Changed Configuration variables enable safety_bubble_shape, safety_bubble_sensitivity, "
-      "enable_ransac_floor_detection, enable_floor_paint"
-      "enable_safety_bubble_zone_visualization %d %d %d %d %d",
-      dynamic_reconfigure_config_.shape_of_safety_bubble,
-      dynamic_reconfigure_config_.safety_bubble_detection_sensitivity,
-      dynamic_reconfigure_config_.enable_ransac_floor_detection, dynamic_reconfigure_config_.enable_floor_paint,
-      dynamic_reconfigure_config_.enable_safety_bubble_zone_visualization);
-}
-
-/**
- * @brief Initialize members of dynamic_reconfigure_config_ structure with the values of parameters which are set via
- * launch file, so that launch file takes precedence over dynamic reconfigure.
- *
- */
-
-void ADI3DToFSafetyBubbleDetector::initSettingsForDynamicReconfigure()
-{
-  dynamic_reconfigure_config_.safety_bubble_radius_in_mtr = safety_zone_radius_mtr_;
-  dynamic_reconfigure_config_.shape_of_safety_bubble = safety_bubble_shape_;
-  dynamic_reconfigure_config_.safety_bubble_detection_sensitivity = safety_bubble_sensitivity_;
-  dynamic_reconfigure_config_.enable_ransac_floor_detection = enable_ransac_floor_detection_;
-  dynamic_reconfigure_config_.enable_floor_paint = enable_floor_paint_;
-  dynamic_reconfigure_config_.enable_safety_bubble_zone_visualization = enable_safety_bubble_zone_visualization_;
-  dynamic_reconfigure_config_.ab_threshold = ab_threshold_;
-  dynamic_reconfigure_config_.confidence_threshold = confidence_threshold_;
+  publisher->publish(*compressed_payload_ptr);
 }

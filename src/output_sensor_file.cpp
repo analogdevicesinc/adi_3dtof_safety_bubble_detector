@@ -5,6 +5,7 @@ and its licensors.
 ******************************************************************************/
 
 #include "output_sensor_file.h"
+
 #include "image_proc_utils.h"
 
 /**
@@ -15,30 +16,24 @@ and its licensors.
  * @param image_height Image Height
  * @param output_flag enum to enable csv or video output
  */
-void OutputSensorFile::open(std::string input_file_name, int image_width, int image_height, OutputFlag output_flag)
+void OutputSensorFile::open(
+  std::string input_file_name, int image_width, int image_height, OutputFlag output_flag)
 {
-  if (output_flag == EnableCSVOutputOnly)
-  {
+  if (output_flag == EnableCSVOutputOnly) {
     csv_enabled_ = true;
-  }
-  else if (output_flag == EnableVideoOutputOnly)
-  {
+  } else if (output_flag == EnableVideoOutputOnly) {
     video_enabled_ = true;
-  }
-  else if (output_flag = EnableAllOutputs)
-  {
+  } else if (output_flag == EnableAllOutputs) {
     csv_enabled_ = true;
     video_enabled_ = true;
   }
 
-  if (csv_enabled_)
-  {
+  if (csv_enabled_) {
     // Open the output csv file
     openOutputCsvFile(input_file_name);
   }
 
-  if (video_enabled_)
-  {
+  if (video_enabled_) {
     // Open output video file
     openOutputVideoFile(input_file_name, image_width * 2, image_height);
   }
@@ -58,10 +53,10 @@ void OutputSensorFile::open(std::string input_file_name, int image_width, int im
  * @param noise_count Noisy pixels below RANSAC plane
  * @param ransac_time_ms_out The time taken by ransac per frame
  */
-void OutputSensorFile::write(int frame_number, bool object_detected, unsigned short* depth_frame_16bpp,
-                             const cv::Mat& m_out_visualization_image, int image_width, int image_height,
-                             bool floor_detection_status, int ransac_iterations, int noise_count,
-                             float ransac_time_ms_out)
+void OutputSensorFile::write(
+  int frame_number, bool object_detected, unsigned short * depth_frame_16bpp,
+  const cv::Mat & m_out_visualization_image, int image_width, int image_height,
+  bool floor_detection_status, int ransac_iterations, int noise_count, float ransac_time_ms_out)
 {
   // Get 8bit image
   cv::Mat depth_8bit_image = cv::Mat::zeros(image_height, image_width, CV_8UC1);
@@ -79,14 +74,13 @@ void OutputSensorFile::write(int frame_number, bool object_detected, unsigned sh
   cv::Mat final_out_image = cv::Mat::zeros(cv::Size(image_width * 2, image_height), CV_8UC3);
   cv::hconcat(depth_8bit_rgb_image, m_out_visualization_image, final_out_image);
 
-  if (csv_enabled_)
-  {
-    writeOutputCsvFile(frame_number, object_detected, floor_detection_status, ransac_iterations, noise_count,
-                       ransac_time_ms_out);
+  if (csv_enabled_) {
+    writeOutputCsvFile(
+      frame_number, object_detected, floor_detection_status, ransac_iterations, noise_count,
+      ransac_time_ms_out);
   }
 
-  if (video_enabled_)
-  {
+  if (video_enabled_) {
     writeOutputVideoFile(final_out_image);
   }
 }
@@ -97,13 +91,11 @@ void OutputSensorFile::write(int frame_number, bool object_detected, unsigned sh
  */
 void OutputSensorFile::close()
 {
-  if (csv_enabled_)
-  {
+  if (csv_enabled_) {
     closeOutputCsvFile();
   }
 
-  if (video_enabled_)
-  {
+  if (video_enabled_) {
     closeOutputVideoFile();
   }
 }
@@ -113,21 +105,17 @@ void OutputSensorFile::close()
  *
  * @param input_file_name Input file name
  */
-void OutputSensorFile::openOutputCsvFile(const std::string& input_file_name)
+void OutputSensorFile::openOutputCsvFile(const std::string & input_file_name)
 {
-  if (input_file_name.find('.') != std::string::npos)
-  {
+  if (input_file_name.find('.') != std::string::npos) {
     output_csv_file_name_ = input_file_name.substr(0, input_file_name.find_last_of('.')) + ".csv";
-  }
-  else
-  {
+  } else {
     output_csv_file_name_ = input_file_name + ".csv";
   }
 
   // Open file for streaming.
   output_csv_file_.open(output_csv_file_name_, std::ios::out);
-  if (output_csv_file_.is_open())
-  {
+  if (output_csv_file_.is_open()) {
     // Update flag.
     output_csv_file_ << "frame_number"
                      << ","
@@ -140,9 +128,7 @@ void OutputSensorFile::openOutputCsvFile(const std::string& input_file_name)
                      << "noise_count"
                      << ","
                      << "ransac_time_in_ms" << std::endl;
-  }
-  else
-  {
+  } else {
     std::cout << "Could not open output csv file for the input " << input_file_name << std::endl;
   }
 }
@@ -154,20 +140,18 @@ void OutputSensorFile::openOutputCsvFile(const std::string& input_file_name)
  * @param image_width Image Width
  * @param image_height Image Height
  */
-void OutputSensorFile::openOutputVideoFile(const std::string& input_file_name, int image_width, int image_height)
+void OutputSensorFile::openOutputVideoFile(
+  const std::string & input_file_name, int image_width, int image_height)
 {
-  if (input_file_name.find('.') != std::string::npos)
-  {
+  if (input_file_name.find('.') != std::string::npos) {
     output_video_file_name_ = input_file_name.substr(0, input_file_name.find_last_of('.')) + ".avi";
-  }
-  else
-  {
+  } else {
     output_video_file_name_ = input_file_name + ".avi";
   }
-  output_video_writer_ = new cv::VideoWriter(output_video_file_name_, cv::VideoWriter::fourcc('m', 'j', 'p', 'g'), 10,
-                                             cv::Size(image_width, image_height), true);
-  if (!output_video_writer_->isOpened())
-  {
+  output_video_writer_ = new cv::VideoWriter(
+    output_video_file_name_, cv::VideoWriter::fourcc('m', 'j', 'p', 'g'), 10,
+    cv::Size(image_width, image_height), true);
+  if (!output_video_writer_->isOpened()) {
     std::cout << "Could not open output video file for the input " << input_file_name << std::endl;
   }
 }
@@ -182,13 +166,14 @@ void OutputSensorFile::openOutputVideoFile(const std::string& input_file_name, i
  * @param noise_count Noisy pixels below RANSAC plane
  * @param ransac_time_ms_out The time taken by ransac per frame
  */
-void OutputSensorFile::writeOutputCsvFile(int frame_number, bool object_detected, bool floor_detection_status,
-                                          int ransac_iterations, int noise_count, float ransac_time_ms_out)
+void OutputSensorFile::writeOutputCsvFile(
+  int frame_number, bool object_detected, bool floor_detection_status, int ransac_iterations,
+  int noise_count, float ransac_time_ms_out)
 {
-  if (output_csv_file_.is_open())
-  {
-    output_csv_file_ << frame_number << "," << object_detected << "," << floor_detection_status << ","
-                     << ransac_iterations << "," << noise_count << "," << ransac_time_ms_out << std::endl;
+  if (output_csv_file_.is_open()) {
+    output_csv_file_ << frame_number << "," << object_detected << "," << floor_detection_status
+                     << "," << ransac_iterations << "," << noise_count << "," << ransac_time_ms_out
+                     << std::endl;
   }
 }
 
@@ -197,10 +182,9 @@ void OutputSensorFile::writeOutputCsvFile(int frame_number, bool object_detected
  *
  * @param image Output image
  */
-void OutputSensorFile::writeOutputVideoFile(const cv::Mat& image)
+void OutputSensorFile::writeOutputVideoFile(const cv::Mat & image)
 {
-  if (output_video_writer_->isOpened())
-  {
+  if (output_video_writer_->isOpened()) {
     output_video_writer_->write(image);
   }
 }
@@ -211,8 +195,7 @@ void OutputSensorFile::writeOutputVideoFile(const cv::Mat& image)
  */
 void OutputSensorFile::closeOutputCsvFile()
 {
-  if (output_csv_file_.is_open())
-  {
+  if (output_csv_file_.is_open()) {
     output_csv_file_.close();
   }
 }
@@ -223,8 +206,7 @@ void OutputSensorFile::closeOutputCsvFile()
  */
 void OutputSensorFile::closeOutputVideoFile()
 {
-  if (output_video_writer_->isOpened())
-  {
+  if (output_video_writer_->isOpened()) {
     output_video_writer_->release();
     output_video_writer_ = nullptr;
   }
