@@ -43,7 +43,6 @@ void OutputSensorFile::open(
  * @brief writes output files (video and/or csv)
  *
  * @param frame_number Current frame number
- * @param object_detected This flag indicates object detection
  * @param depth_frame_16bpp Pointer to depth image
  * @param m_out_visualization_image Pointer to output image
  * @param image_width Image width
@@ -54,7 +53,7 @@ void OutputSensorFile::open(
  * @param ransac_time_ms_out The time taken by ransac per frame
  */
 void OutputSensorFile::write(
-  int frame_number, bool object_detected, unsigned short * depth_frame_16bpp,
+  int frame_number, unsigned short * depth_frame_16bpp,
   const cv::Mat & m_out_visualization_image, int image_width, int image_height,
   bool floor_detection_status, int ransac_iterations, int noise_count, float ransac_time_ms_out)
 {
@@ -75,8 +74,9 @@ void OutputSensorFile::write(
   cv::hconcat(depth_8bit_rgb_image, m_out_visualization_image, final_out_image);
 
   if (csv_enabled_) {
+    // Note: object_detected removed - use detection_result_.any_detected if needed
     writeOutputCsvFile(
-      frame_number, object_detected, floor_detection_status, ransac_iterations, noise_count,
+      frame_number, false, floor_detection_status, ransac_iterations, noise_count,
       ransac_time_ms_out);
   }
 

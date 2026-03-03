@@ -1,0 +1,164 @@
+# Safety Bubble Detector - ROS 2 Parameters Configuration
+# All parameters can be dynamically reconfigured at runtime except those marked as read_only
+#
+# Distance/Height units: meters (suffix: _mtr)
+# This file can be loaded via launch file or command line:
+#   ros2 run adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_node --ros-args --params-file config/adi_3dtof_safety_bubble_detector_params.yaml
+
+/**:
+  ros__parameters:
+    # ========================================================================
+    # Frame/Link Configuration (read_only)
+    # ========================================================================
+    param_camera_link: "adi_camera_link_def"
+    param_optical_camera_link: "optical_camera_link"
+    param_virtual_camera_link: "virtual_camera_link"
+    
+    # Virtual camera height in meters (read_only)
+    param_virtual_camera_height: 5.0
+    
+    # ========================================================================
+    # Input/Output Configuration (read_only)
+    # ========================================================================
+    # NOTE: The following 4 parameters can be overridden via launch arguments:
+    #   - param_input_sensor_mode       -> arg_input_sensor_mode
+    #   - param_input_file_name_or_ros_topic_prefix_name -> arg_input_file_name
+    #   - param_input_sensor_ip         -> arg_input_sensor_ip
+    #   - param_camera_mode             -> arg_camera_mode
+    # All other parameters must be changed in this YAML file or via dynamic reconfigure at runtime.
+    
+    # Input sensor mode: 0=Camera, 2=FileIO, 3=Network (overridable via launch arg)
+    param_input_sensor_mode: 0
+    
+    # Output sensor mode: 0=no output, 1=avi and csv file generated
+    param_output_sensor_mode: 0
+    
+    # Input file name (for FileIO mode) or ROS topic prefix name (overridable via launch arg)
+    param_input_file_name_or_ros_topic_prefix_name: "src/adi_3dtof_input_video_files/adi_3dtof_height_170mm_yaw_0degrees_cam3.bin"
+    
+    # Input sensor IP address (for network mode) (overridable via launch arg)
+    param_input_sensor_ip: "192.168.56.1"
+    
+    # ========================================================================
+    # Image Configuration (read_only)
+    # ========================================================================
+    param_input_image_width: 1024
+    param_input_image_height: 1024
+    param_processing_scale: 2
+    
+    # ========================================================================
+    # ToF SDK Configuration (read_only)
+    # ========================================================================
+    # Path to ToF SDK configuration file
+    # config_adsd3500_adsd3100.json - For ADSD3100 (MP sensor)
+    # config_adsd3500_adsd3030.json - For ADSD3030 (VGA sensor)
+    param_config_file_name_of_tof_sdk: ""
+    
+    # Camera mode for the TOF sensor (overridable via launch arg)
+    param_camera_mode: 3
+    
+    # ========================================================================
+    # Image Quality Parameters (Dynamic Reconfigurable)
+    # ========================================================================
+    # AB threshold value (1-255)
+    # For sensors starting with CR/DV: default 10
+    # For sensors starting with AM: use 25
+    param_ab_threshold: 10
+    
+    # Confidence threshold value (1-255)
+    # For sensors starting with CR/DV: default 10
+    # For sensors starting with AM: use 25
+    param_confidence_threshold: 10
+    
+    # ========================================================================
+    # Floor Detection Parameters
+    # ========================================================================
+    # Enable RANSAC floor detection (Dynamic Reconfigurable)
+    param_enable_ransac_floor_detection: true
+    
+    # RANSAC distance threshold in meters (read_only)
+    # Determines how close a point must be to the plane to be considered an inlier
+    param_ransac_distance_threshold_mtr: 0.025
+    
+    # RANSAC maximum iterations (read_only)
+    param_ransac_max_iterations: 10
+    
+    # Floor height threshold in meters (Dynamic Reconfigurable)
+    # Used when RANSAC is disabled - objects below this height are considered floor
+    param_floor_height_threshold_mtr: 0.1
+    
+    # ========================================================================
+    # Detection Parameters (Dynamic Reconfigurable)
+    # ========================================================================
+    # Safety bubble detection sensitivity (1-100)
+    # 1 = highly sensitive, 100 = less sensitive
+    param_safety_bubble_detection_sensitivity: 10
+    
+    # ========================================================================
+    # Visualization Parameters (Dynamic Reconfigurable)
+    # ========================================================================
+    # Enable floor paint visualization
+    param_enable_floor_paint: false
+    
+    # Enable safety bubble zone visualization
+    param_enable_safety_bubble_zone_visualization: true
+    
+    # ========================================================================
+    # Compression Parameters (read_only)
+    # ========================================================================
+    # Enable depth and IR image compression
+    param_enable_depth_ir_compression: false
+    
+    # Enable output image compression
+    param_enable_output_image_compression: true
+    
+    # ========================================================================
+    # Multi-Zone Configuration
+    # ========================================================================
+    # Path to zone configuration YAML file (read_only)
+    # Leave empty to use dynamic reconfigure parameters below
+    param_zone_config_file: ""
+    
+    # Zone 1 Parameters (Dynamic Reconfigurable)
+    # Innermost zone - typically "danger" zone (red visualization)
+    param_zone1_shape: 0              # 0=Circle, 1=Rectangle
+    param_zone1_radius_z_mtr: 1.0     # Radius (circle) or half-height (rectangle) in meters
+    param_zone1_width_x_mtr: 0.5      # Half-width (rectangle only) in meters
+    param_zone1_enabled: true         # Enable/disable zone 1
+    
+    # Zone 2 Parameters (Dynamic Reconfigurable)
+    # Middle zone - typically "warning" zone (yellow visualization)
+    param_zone2_shape: 0              # 0=Circle, 1=Rectangle
+    param_zone2_radius_z_mtr: 0.8     # Radius (circle) or half-height (rectangle) in meters
+    param_zone2_width_x_mtr: 1.2      # Half-width (rectangle only) in meters
+    param_zone2_enabled: true         # Enable/disable zone 2
+    
+    # Zone 3 Parameters (Dynamic Reconfigurable)
+    # Outermost zone - typically "caution" zone (green visualization)
+    param_zone3_shape: 0              # 0=Circle, 1=Rectangle
+    param_zone3_radius_z_mtr: 1.5     # Radius (circle) or half-height (rectangle) in meters
+    param_zone3_width_x_mtr: 1.5      # Half-width (rectangle only) in meters
+    param_zone3_enabled: true         # Enable/disable zone 3
+
+# ============================================================================
+# Usage Examples:
+# ============================================================================
+#
+# 1. Launch with this parameter file:
+#    ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera_launch.py params_file:=config/adi_3dtof_safety_bubble_detector_params.yaml
+#
+# 2. Override specific parameters at launch:
+#    ros2 launch ... params_file:=config/adi_3dtof_safety_bubble_detector_params.yaml param_zone1_radius_z_mtr:=1.2
+#
+# 3. Change parameters at runtime (dynamic reconfigure):
+#    ros2 param set /adi_3dtof_safety_bubble_detector_node param_zone1_radius_z_mtr 1.2
+#    ros2 param set /adi_3dtof_safety_bubble_detector_node param_enable_ransac_floor_detection false
+#
+# 4. Use RQT for GUI-based parameter tuning:
+#    rqt
+#    Plugins -> Configuration -> Dynamic Reconfigure
+#
+# 5. Load zone configuration from separate YAML file:
+#    param_zone_config_file: "/path/to/custom_zones.yaml"
+#    (When specified, zone parameters above are loaded from file at startup,
+#     but can still be changed at runtime via dynamic reconfigure)

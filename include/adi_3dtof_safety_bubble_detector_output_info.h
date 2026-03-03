@@ -7,6 +7,8 @@ and its licensors.
 #define ADI_3DTOF_SAFETY_BUBBLE_DETECTOR_OUTPUT_INFO_H
 
 #include <cstring>
+#include "multi_zone_detector.hpp"
+
 /**
  * @brief This is the class for Safety bubble detector output info
  *
@@ -24,7 +26,6 @@ public:
   {
     // Create the node.
     frame_number_ = -1;
-    object_detected_ = false;
     ransac_floor_detection_status_ = false;
     ransac_iterations_ = -1;
     ransac_time_ms_ = -1;
@@ -93,7 +94,7 @@ public:
     const ADI3DToFSafetyBubbleDetectorOutputInfo & rhs)
   {
     frame_number_ = rhs.frame_number_;
-    object_detected_ = rhs.object_detected_;
+    detection_result_ = rhs.detection_result_;  // Copy multi-zone detection results
     ransac_floor_detection_status_ = rhs.ransac_floor_detection_status_;
     ransac_iterations_ = rhs.ransac_iterations_;
     noise_count_ = rhs.noise_count_;
@@ -128,7 +129,7 @@ public:
   }
 
   int frame_number_;
-  bool object_detected_;
+  adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult detection_result_;  // Multi-zone detection results
   bool ransac_floor_detection_status_;
   int ransac_iterations_;
   int noise_count_;

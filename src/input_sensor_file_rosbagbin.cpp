@@ -198,12 +198,24 @@ bool InputSensorFileRosbagBin::readNextFrame(
     if (in_file_.gcount() != num_bytes_in_combo_frame) {
       // Error in reading frame.
       error_reading_frame = true;
+      
+      // Repeat the file.
+      closeSensor();
+      openSensor(in_file_name_,input_frame_width_,input_frame_height_,"","");
+      configureSensor(1);
+      error_reading_frame = false;
+      frame_counter_ = 0;
     }
-
     ++frame_counter_;
   } else {
     // EOF is reached or file is not openned
-    error_reading_frame = true;
+    error_reading_frame = true;    
+    // Repeat the file.
+    closeSensor();
+    openSensor(in_file_name_,input_frame_width_,input_frame_height_,"","");
+    configureSensor(1);
+    error_reading_frame = false;
+    frame_counter_ = 0;
   }
 
   // unsigned short* temp_frame_buffer = reinterpret_cast<unsigned short*>(frame_buffer);

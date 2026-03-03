@@ -1,0 +1,109 @@
+# Camera Orientation Configurations
+# This file defines camera positions and orientations for different mounting configurations
+
+# Camera naming convention:
+# - cam1: 135° yaw (rear-left)
+# - cam2: 67.5° yaw (left)
+# - cam3: 0° yaw (front/center)
+# - cam4: -67.5° yaw (right)
+
+camera_orientations:
+  # Camera 1: 135 degrees yaw (rear-left view)
+  cam1_135deg:
+    name: "cam1"
+    description: "Camera facing 135 degrees - rear-left coverage"
+    position:
+      x: -0.078
+      y: 0.079
+      z: 0.15  # Default height, can be overridden
+    orientation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 2.35619  # 135 degrees in radians
+    input_file: "adi_3dtof_height_170mm_yaw_135degrees_cam1.bin"
+
+  # Camera 2: 67.5 degrees yaw (left view)
+  cam2_67_5deg:
+    name: "cam2"
+    description: "Camera facing 67.5 degrees - left coverage"
+    position:
+      x: 0.042
+      y: 0.096
+      z: 0.15
+    orientation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 1.17809725  # 67.5 degrees in radians
+    input_file: "adi_3dtof_height_170mm_yaw_67_5degrees_cam2.bin"
+
+  # Camera 3: 0 degrees yaw (front/center view)
+  cam3_0deg:
+    name: "cam3"
+    description: "Camera facing 0 degrees - front/center coverage"
+    position:
+      x: 0.111
+      y: 0.0
+      z: 0.15
+    orientation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0  # 0 degrees
+    input_file: "adi_3dtof_height_170mm_yaw_0degrees_cam3.bin"
+
+  # Camera 4: -67.5 degrees yaw (right view)
+  cam4_minus_67_5deg:
+    name: "cam4"
+    description: "Camera facing -67.5 degrees - right coverage"
+    position:
+      x: 0.042
+      y: -0.096
+      z: 0.15
+    orientation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: -1.17809725  # -67.5 degrees in radians
+    input_file: "adi_3dtof_height_170mm_yaw_minus_67_5degrees_cam4.bin"
+
+  # Default/Generic single camera (center mounted, level)
+  default:
+    name: "cam1"
+    description: "Default single camera - center mounted, no rotation"
+    position:
+      x: 0.0
+      y: 0.0
+      z: 0.15
+    orientation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    input_file: "default_input.bin"
+
+# Virtual camera configuration (common for all orientations)
+virtual_camera:
+  name: "virtual_camera_frame"
+  parent_frame: "map"
+  position:
+    x: 0.0
+    y: 0.0
+    z: 5.0  # Looking down from 5 meters
+  orientation:
+    roll: 3.1415927   # 180 degrees (flipped)
+    pitch: 0.0
+    yaw: -1.5707      # -90 degrees
+
+# Optical to base frame transform (standard, never changes)
+optical_to_base_transform:
+  roll: -1.57   # -90 degrees
+  pitch: 0.0
+  yaw: -1.57    # -90 degrees
+
+# Notes:
+# - Position is in meters relative to map frame
+# - Orientation is in radians
+# - Roll: rotation around X-axis (side tilt)
+#   - Negative = left side down, Positive = right side down
+# - Pitch: rotation around Y-axis (vertical tilt)
+#   - Negative = tilted up, Positive = tilted down
+#   - Range: (-1.5708, 1.5708) = (-90°, 90°)
+# - Yaw: rotation around Z-axis (horizontal rotation)
+#   - 0 = facing forward, Positive = counter-clockwise

@@ -1,0 +1,14 @@
+# ConfigureZone.srv
+# Service to configure a single safety zone at runtime
+
+# Request
+int32 zone_id                 # Zone ID to configure (1-N)
+bool enabled                  # Enable/disable the zone
+string shape                  # "circle" or "rectangle"
+float32 radius_cm             # Radius for circle (cm)
+float32 x_dim_cm              # X dimension for rectangle (cm)
+float32 z_dim_cm              # Z dimension for rectangle (cm)
+---
+# Response
+bool success                  # Whether configuration was applied
+string message                # Status message or error description

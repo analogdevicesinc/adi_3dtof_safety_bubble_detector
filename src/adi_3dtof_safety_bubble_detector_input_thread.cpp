@@ -49,21 +49,22 @@ ADTF31xxSensorFrameInfo * ADI3DToFSafetyBubbleDetector::safetyBubbleDetectorIOTh
 }
 
 /**
- * @brief updates parameters of input image based on dynamic reconfigure.
- *
+ * @brief Updates sensor-specific parameters that affect frame capture.
+ *        These parameters must be updated in the input thread where frames are captured.
  */
 void ADI3DToFSafetyBubbleDetector::updateDynamicReconfigureVariablesInputThread()
 {
+  // Update AB threshold if changed (affects sensor capture)
   if (ab_threshold_ != tunable_params_.ab_threshold) {
     ab_threshold_ = tunable_params_.ab_threshold;
     RCLCPP_INFO(this->get_logger(), "Changed AB threshold value is %d", ab_threshold_);
     input_sensor_->setABinvalidationThreshold(ab_threshold_);
   }
 
+  // Update confidence threshold if changed (affects sensor capture)
   if (confidence_threshold_ != tunable_params_.confidence_threshold) {
     confidence_threshold_ = tunable_params_.confidence_threshold;
-    RCLCPP_INFO(
-      this->get_logger(), "Changed Confidence threshold value is %d", confidence_threshold_);
+    RCLCPP_INFO(this->get_logger(), "Changed Confidence threshold value is %d", confidence_threshold_);
     input_sensor_->setConfidenceThreshold(confidence_threshold_);
   }
 }

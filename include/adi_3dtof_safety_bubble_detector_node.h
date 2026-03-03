@@ -16,6 +16,7 @@ and its licensors.
 #include <std_msgs/msg/bool.hpp>
 #include <utility>
 
+#include "adi_3dtof_safety_bubble_detector/msg/zone_status_array.hpp"
 #include "adi_3dtof_safety_bubble_detector_output_info.h"
 #include "adtf31xx_sensor_frame_info.h"
 #include "floor_plane_detection.h"
@@ -24,10 +25,13 @@ and its licensors.
 #include "input_sensor_factory.h"
 #include "output_sensor.h"
 #include "output_sensor_factory.h"
+#include "zone_config.hpp"
+#include "multi_zone_detector.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include <image_geometry/pinhole_camera_model.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include "module_profile.h"
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -164,6 +168,11 @@ public:
     this->declare_parameter<int>(
       "param_ransac_max_iterations", 10, max_ransac_iteration_allowed_descriptor);
 
+    // Floor height threshold for non-RANSAC floor detection
+    rcl_interfaces::msg::ParameterDescriptor floor_height_threshold_descriptor{};
+    floor_height_threshold_descriptor.description = "Height threshold above floor in meters - objects below this height are considered floor (used when RANSAC is disabled)";
+    this->declare_parameter<float>("param_floor_height_threshold_mtr", 0.1f, floor_height_threshold_descriptor);
+
     // path of the config file to read from tof sdk
     rcl_interfaces::msg::ParameterDescriptor path_of_the_config_file_descriptor{};
     path_of_the_config_file_descriptor.read_only = true;
@@ -182,21 +191,66 @@ public:
     ip_address_of_sensor_descriptor.read_only = true;
     ip_address_of_sensor_descriptor.description = "IP address of the sensor";
     this->declare_parameter<std::string>(
-      "param_input_sensor_ip", "no name", ip_address_of_sensor_descriptor);	
-    
-    // Safety zone radius
-    rcl_interfaces::msg::ParameterDescriptor safety_zone_radius_descriptor{};
-    rcl_interfaces::msg::FloatingPointRange safety_zone_radius_range;
-    safety_zone_radius_range.set__from_value(0.1).set__to_value(3);
-    safety_zone_radius_descriptor.floating_point_range = {safety_zone_radius_range};
-    safety_zone_radius_descriptor.description = "Safety bubble radius in meters";
-    this->declare_parameter<float>(
-      "param_safety_zone_radius_in_mtr", 1.0f, safety_zone_radius_descriptor);
+      "param_input_sensor_ip", "no name", ip_address_of_sensor_descriptor);
 
-    // Shape of safety bubble. 0 = circular, 1 = square
-    rcl_interfaces::msg::ParameterDescriptor safety_bubble_shape_descriptor{};
-    safety_bubble_shape_descriptor.description = "0 : Circular, 1 : Square";
-    this->declare_parameter<int>("param_safety_bubble_shape", 0, safety_bubble_shape_descriptor);
+    // Zone configuration file path
+    rcl_interfaces::msg::ParameterDescriptor zone_config_file_descriptor{};
+    zone_config_file_descriptor.read_only = true;
+    zone_config_file_descriptor.description = "Path to multi-zone YAML configuration file";
+    this->declare_parameter<std::string>(
+      "param_zone_config_file", "", zone_config_file_descriptor);
+    
+    // Multi-zone dynamic reconfigure parameters (3 zones)
+    // Zone 1 parameters
+    rcl_interfaces::msg::ParameterDescriptor zone1_shape_descriptor{};
+    zone1_shape_descriptor.description = "Zone 1 shape: 0=Circle, 1=Rectangle";
+    this->declare_parameter<int>("param_zone1_shape", 0, zone1_shape_descriptor);
+    
+    rcl_interfaces::msg::ParameterDescriptor zone1_size_z_descriptor{};
+    zone1_size_z_descriptor.description = "Zone 1 Z-size/Radius: radius for circle or half-height for rectangle in meters";
+    this->declare_parameter<double>("param_zone1_radius_z_mtr", 1.0, zone1_size_z_descriptor);
+    
+    rcl_interfaces::msg::ParameterDescriptor zone1_size_x_descriptor{};
+    zone1_size_x_descriptor.description = "Zone 1 X-size: half-width for rectangle in meters (ignored for circle)";
+    this->declare_parameter<double>("param_zone1_width_x_mtr", 0.5, zone1_size_x_descriptor);
+
+    rcl_interfaces::msg::ParameterDescriptor zone1_enabled_descriptor{};
+    zone1_enabled_descriptor.description = "Zone 1 enabled";
+    this->declare_parameter<bool>("param_zone1_enabled", true, zone1_enabled_descriptor);
+
+    // Zone 2 parameters
+    rcl_interfaces::msg::ParameterDescriptor zone2_shape_descriptor{};
+    zone2_shape_descriptor.description = "Zone 2 shape: 0=Circle, 1=Rectangle";
+    this->declare_parameter<int>("param_zone2_shape", 0, zone2_shape_descriptor);
+    
+    rcl_interfaces::msg::ParameterDescriptor zone2_size_z_descriptor{};
+    zone2_size_z_descriptor.description = "Zone 2 Z-size/Radius: radius for circle or half-height for rectangle in meters";
+    this->declare_parameter<double>("param_zone2_radius_z_mtr", 0.8, zone2_size_z_descriptor);
+    
+    rcl_interfaces::msg::ParameterDescriptor zone2_size_x_descriptor{};
+    zone2_size_x_descriptor.description = "Zone 2 X-size: half-width for rectangle in meters (ignored for circle)";
+    this->declare_parameter<double>("param_zone2_width_x_mtr", 1.2, zone2_size_x_descriptor);
+
+    rcl_interfaces::msg::ParameterDescriptor zone2_enabled_descriptor{};
+    zone2_enabled_descriptor.description = "Zone 2 enabled";
+    this->declare_parameter<bool>("param_zone2_enabled", true, zone2_enabled_descriptor);
+
+    // Zone 3 parameters
+    rcl_interfaces::msg::ParameterDescriptor zone3_shape_descriptor{};
+    zone3_shape_descriptor.description = "Zone 3 shape: 0=Circle, 1=Rectangle";
+    this->declare_parameter<int>("param_zone3_shape", 0, zone3_shape_descriptor);
+    
+    rcl_interfaces::msg::ParameterDescriptor zone3_size_z_descriptor{};
+    zone3_size_z_descriptor.description = "Zone 3 Z-size/Radius: radius for circle or half-height for rectangle in meters";
+    this->declare_parameter<double>("param_zone3_radius_z_mtr", 1.5, zone3_size_z_descriptor);
+    
+    rcl_interfaces::msg::ParameterDescriptor zone3_size_x_descriptor{};
+    zone3_size_x_descriptor.description = "Zone 3 X-size: half-width for rectangle in meters (ignored for circle)";
+    this->declare_parameter<double>("param_zone3_width_x_mtr", 1.5, zone3_size_x_descriptor);
+
+    rcl_interfaces::msg::ParameterDescriptor zone3_enabled_descriptor{};
+    zone3_enabled_descriptor.description = "Zone 3 enabled";
+    this->declare_parameter<bool>("param_zone3_enabled", true, zone3_enabled_descriptor);
 
     // enable option to run ransac floor detection algortihm
     rcl_interfaces::msg::ParameterDescriptor enable_ransac_floor_detection_descriptor{};
@@ -253,10 +307,6 @@ public:
       this->get_parameter("param_optical_camera_link").get_parameter_value().get<std::string>();
     virtual_camera_link_ =
       this->get_parameter("param_virtual_camera_link").get_parameter_value().get<std::string>();
-    safety_zone_radius_mtr_ =
-      this->get_parameter("param_safety_zone_radius_in_mtr").get_parameter_value().get<float>();
-    safety_bubble_shape_ =
-      this->get_parameter("param_safety_bubble_shape").get_parameter_value().get<int>();
     virtual_camera_height_mtr_ =
       this->get_parameter("param_virtual_camera_height").get_parameter_value().get<float>();
     input_sensor_mode_ =
@@ -288,6 +338,8 @@ public:
       this->get_parameter("param_ransac_distance_threshold_mtr").get_parameter_value().get<float>();
     ransac_max_iterations_ =
       this->get_parameter("param_ransac_max_iterations").get_parameter_value().get<int>();
+    floor_height_threshold_mtr_ =
+      this->get_parameter("param_floor_height_threshold_mtr").get_parameter_value().get<float>();
     ab_threshold_ = this->get_parameter("param_ab_threshold").get_parameter_value().get<int>();
     confidence_threshold_ =
       this->get_parameter("param_confidence_threshold").get_parameter_value().get<int>();
@@ -306,24 +358,84 @@ public:
                                     .get<std::string>();
 
     input_sensor_ip_ =
-      this->get_parameter("param_input_sensor_ip").get_parameter_value().get<std::string>();          
-    int camera_mode = this->get_parameter("param_camera_mode").get_parameter_value().get<int>();    
+      this->get_parameter("param_input_sensor_ip").get_parameter_value().get<std::string>();
+    zone_config_file_path_ =
+      this->get_parameter("param_zone_config_file").get_parameter_value().get<std::string>();
+    int camera_mode = this->get_parameter("param_camera_mode").get_parameter_value().get<int>();
 
-    fallback_floor_height_offset_mtr_ = 0.1f;
+    // Initialize tunable zone parameters from declared parameters
+    tunable_params_.zone1_shape = this->get_parameter("param_zone1_shape").get_parameter_value().get<int>();
+    tunable_params_.zone1_size_z_mtr = this->get_parameter("param_zone1_radius_z_mtr").get_parameter_value().get<double>();
+    tunable_params_.zone1_size_x_mtr = this->get_parameter("param_zone1_width_x_mtr").get_parameter_value().get<double>();
+    tunable_params_.zone1_enabled = this->get_parameter("param_zone1_enabled").get_parameter_value().get<bool>();
+    
+    tunable_params_.zone2_shape = this->get_parameter("param_zone2_shape").get_parameter_value().get<int>();
+    tunable_params_.zone2_size_z_mtr = this->get_parameter("param_zone2_radius_z_mtr").get_parameter_value().get<double>();
+    tunable_params_.zone2_size_x_mtr = this->get_parameter("param_zone2_width_x_mtr").get_parameter_value().get<double>();
+    tunable_params_.zone2_enabled = this->get_parameter("param_zone2_enabled").get_parameter_value().get<bool>();
+    
+    tunable_params_.zone3_shape = this->get_parameter("param_zone3_shape").get_parameter_value().get<int>();
+    tunable_params_.zone3_size_z_mtr = this->get_parameter("param_zone3_radius_z_mtr").get_parameter_value().get<double>();
+    tunable_params_.zone3_size_x_mtr = this->get_parameter("param_zone3_width_x_mtr").get_parameter_value().get<double>();
+    tunable_params_.zone3_enabled = this->get_parameter("param_zone3_enabled").get_parameter_value().get<bool>();
+
+    // Default 3 zones.
+    multi_zone_config_.setNumZones(3);
+
+    // Sync loaded zone configuration with tunable parameters (3 zones)
+    auto& zones = multi_zone_config_.getZones();
+    if (zones.size() >= 3) {
+      // Zone 1
+      tunable_params_.zone1_shape = (zones[0].shape == adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE) ? 0 : 1;
+      tunable_params_.zone1_size_z_mtr = zones[0].radius_mtr;  // For circles: radius stored in size_z
+      tunable_params_.zone1_size_x_mtr = zones[0].x_dim_mtr;   // For rectangles: x half-dimension
+      tunable_params_.zone1_enabled = zones[0].enabled;
+
+      // Zone 2
+      tunable_params_.zone2_shape = (zones[1].shape == adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE) ? 0 : 1;
+      tunable_params_.zone2_size_z_mtr = zones[1].radius_mtr;  // For circles: radius stored in size_z
+      tunable_params_.zone2_size_x_mtr = zones[1].x_dim_mtr;   // For rectangles: x half-dimension
+      tunable_params_.zone2_enabled = zones[1].enabled;
+
+      // Zone 3
+      tunable_params_.zone3_shape = (zones[2].shape == adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE) ? 0 : 1;
+      tunable_params_.zone3_size_z_mtr = zones[2].radius_mtr;  // For circles: radius stored in size_z
+      tunable_params_.zone3_size_x_mtr = zones[2].x_dim_mtr;   // For rectangles: x half-dimension
+      tunable_params_.zone3_enabled = zones[2].enabled;
+
+      //RCLCPP_INFO(this->get_logger(), "Initialized tunable parameters from loaded zone configuration");
+
+      // Update ROS parameters to reflect loaded configuration (so RQT GUI shows correct values)
+      this->set_parameter(rclcpp::Parameter("param_zone1_shape", tunable_params_.zone1_shape));
+      this->set_parameter(rclcpp::Parameter("param_zone1_radius_z_mtr", tunable_params_.zone1_size_z_mtr));
+      this->set_parameter(rclcpp::Parameter("param_zone1_width_x_mtr", tunable_params_.zone1_size_x_mtr));
+      this->set_parameter(rclcpp::Parameter("param_zone1_enabled", tunable_params_.zone1_enabled));
+
+      this->set_parameter(rclcpp::Parameter("param_zone2_shape", tunable_params_.zone2_shape));
+      this->set_parameter(rclcpp::Parameter("param_zone2_radius_z_mtr", tunable_params_.zone2_size_z_mtr));
+      this->set_parameter(rclcpp::Parameter("param_zone2_width_x_mtr", tunable_params_.zone2_size_x_mtr));
+      this->set_parameter(rclcpp::Parameter("param_zone2_enabled", tunable_params_.zone2_enabled));
+
+      this->set_parameter(rclcpp::Parameter("param_zone3_shape", tunable_params_.zone3_shape));
+      this->set_parameter(rclcpp::Parameter("param_zone3_radius_z_mtr", tunable_params_.zone3_size_z_mtr));
+      this->set_parameter(rclcpp::Parameter("param_zone3_width_x_mtr", tunable_params_.zone3_size_x_mtr));
+      this->set_parameter(rclcpp::Parameter("param_zone3_enabled", tunable_params_.zone3_enabled));
+
+      //RCLCPP_INFO(this->get_logger(), "Updated ROS parameters to match loaded zone configuration");
+    }
+
     frame_number_ = 0;
-    safety_zone_radius_pixels_ = 0;
 
     valid_roi_ = {0, 0, 0, 0};
 
     tunable_params_.ab_threshold = ab_threshold_;
     tunable_params_.confidence_threshold = confidence_threshold_;
     tunable_params_.enable_floor_paint = enable_floor_paint_;
+    tunable_params_.floor_height_threshold_mtr = floor_height_threshold_mtr_;
     tunable_params_.enable_ransac_floor_detection = enable_ransac_floor_detection_;
     tunable_params_.enable_safety_bubble_zone_visualization =
       enable_safety_bubble_zone_visualization_;
     tunable_params_.safety_bubble_detection_sensitivity = safety_bubble_sensitivity_;
-    tunable_params_.safety_bubble_radius_in_mtr = safety_zone_radius_mtr_;
-    tunable_params_.shape_of_safety_bubble = safety_bubble_shape_;
 
     param_subscriber_ = std::make_shared<rclcpp::ParameterEventHandler>(this);
     callback_handle_ = this->add_on_set_parameters_callback(
@@ -384,47 +496,43 @@ public:
     populateIdealCameraIntrinsics(&vcam_intrinsics_);
 
     /*Filtering point cloud based on Z : Select the points with lesser than (safety bubble radius + 0.5m) depth*/
-    discard_distance_threshold_mtr_ =
-      safety_zone_radius_mtr_ + discard_distance_threshold_delta_mtr_;
+    // Note: This uses the last zone's radius as reference for point cloud filtering
+    {
+      auto& zones_init = multi_zone_config_.getZones();
+      float max_zone_radius = 1.0f;  // Default 1.0m
+      if (!zones_init.empty()) {
+        max_zone_radius = zones_init[zones_init.size() - 1].radius_mtr;  // Already in meters
+      }
+      discard_distance_threshold_mtr_ = max_zone_radius + discard_distance_threshold_delta_mtr_;
+    }
 
     // Get camera link and virtual camera link TF
     getCameraLinksTF();
 
-    // Find the threshold for safety zone
-    safety_zone_radius_pixels_ = setZoneRadius();
-
-    safety_bubble_zone_red_mask_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC3);
-
-    if (safety_bubble_shape_ == 0) {
-      // Circular Safety Bubble
-      safety_bubble_zone_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
-      cv::circle(
-        safety_bubble_zone_, cv::Point(image_width_ / 2, image_height_ / 2),
-        safety_zone_radius_pixels_, 255, -1);
-      cv::circle(
-        safety_bubble_zone_red_mask_, cv::Point(image_width_ / 2, image_height_ / 2),
-        safety_zone_radius_pixels_, cv::Scalar(0, 0, 255), -1);
-      cv::circle(
-        safety_bubble_zone_red_mask_, cv::Point(image_width_ / 2, image_height_ / 2),
-        safety_zone_radius_pixels_, cv::Scalar(0, 0, 255), -1);
-    } else if (safety_bubble_shape_ == 1) {
-      // Rectangular Safety Bubble
-      cv::Point top_left(
-        (image_width_ / 2) - safety_zone_radius_pixels_,
-        (image_width_ / 2) - safety_zone_radius_pixels_);
-      cv::Point bottom_right(
-        (image_width_ / 2) + safety_zone_radius_pixels_,
-        (image_width_ / 2) + safety_zone_radius_pixels_);
-
-      safety_bubble_zone_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
-      cv::rectangle(
-        safety_bubble_zone_, top_left, bottom_right, cv::Scalar(255, 255, 255), -1, 8, 0);
-      cv::rectangle(
-        safety_bubble_zone_red_mask_, top_left, bottom_right, cv::Scalar(0, 0, 255), -1, 8, 0);
+    // Calculate pixels_per_meter_ for zone size conversions and visualization
+    // Compute pixels per meter from virtual camera parameters
+    {
+      float focal_length_x = vcam_intrinsics_.camera_matrix[0];
+      float focal_length_y = vcam_intrinsics_.camera_matrix[4];
+      float focal_length = (focal_length_x + focal_length_y) / 2.0f;
+      float fov = 2.0f * atan2(image_width_ / 2.0f, focal_length);
+      float fov_in_meters = 2.0f * virtual_camera_height_mtr_ * tan(fov / 2.0f);
+      pixels_per_meter_ = image_width_ / fov_in_meters;
     }
 
+    // Initialize MultiZoneDetector with camera parameters
+    float focal_length_x = vcam_intrinsics_.camera_matrix[0];
+    float focal_length_y = vcam_intrinsics_.camera_matrix[4];
+    multi_zone_detector_ = std::make_unique<adi_3dtof_safety_bubble_detector::MultiZoneDetector>(
+      image_width_, image_height_, virtual_camera_height_mtr_, focal_length_x, focal_length_y);
+    
+    // Initialize detector with multi-zone configuration
+    multi_zone_detector_->initialize(multi_zone_config_);
+    multi_zone_detector_->setSensitivity(safety_bubble_sensitivity_);
+
     // Output Images
-    object_detected_publisher_ = this->create_publisher<std_msgs::msg::Bool>("object_detected", 10);
+    // Zone status publisher (per-zone detection status)
+    zone_status_publisher_ = this->create_publisher<adi_3dtof_safety_bubble_detector::msg::ZoneStatusArray>("zone_status", 10);
     if (enable_output_image_compression_ == true) {
       compressed_out_image_publisher_ =
         this->create_publisher<sensor_msgs::msg::CompressedImage>("out_image/compressed", 10);
@@ -503,6 +611,7 @@ public:
    */
   void timer_callback()
   {
+    FLUSH_FUNCTION_PROFILE();
     if (!runSafetyBubbleDetection()) {
       //Raise an exception to shutdown the Node.
       throw std::runtime_error("Error Running Safety bubble detector");
@@ -518,10 +627,7 @@ private:
   std::string camera_link_;
   std::string optical_camera_link_;
   std::string virtual_camera_link_;
-  float safety_zone_radius_mtr_;
-  int safety_bubble_shape_;
   int safety_bubble_sensitivity_;
-  int safety_zone_radius_pixels_;
   float virtual_camera_height_mtr_;
   int input_sensor_mode_;
   int output_sensor_mode_;
@@ -553,7 +659,7 @@ private:
   unsigned char * vcam_depth_image_floor_pixels_removed_8bpp_ = nullptr;
   unsigned short * vcam_depth_frame_with_floor_ = nullptr;
   //Publishers
-  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr object_detected_publisher_;
+  rclcpp::Publisher<adi_3dtof_safety_bubble_detector::msg::ZoneStatusArray>::SharedPtr zone_status_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr out_image_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_image_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr ab_image_publisher_;
@@ -577,9 +683,22 @@ private:
   std::mutex output_thread_mtx_;
   std::mutex input_thread_mtx_;
 
-  cv::Mat safety_bubble_zone_;
-  cv::Mat safety_bubble_zone_red_mask_;
+  // Visualization flag for zone overlays on output image
   bool enable_safety_bubble_zone_visualization_;
+
+  // Multi-zone configuration and detector
+  adi_3dtof_safety_bubble_detector::MultiZoneConfig multi_zone_config_;
+  std::unique_ptr<adi_3dtof_safety_bubble_detector::MultiZoneDetector> multi_zone_detector_;
+  adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult last_detection_result_;
+  std::string zone_config_file_path_;
+  float pixels_per_meter_;  // Conversion factor from meters to pixels
+
+  // Cached visualization data for 30FPS performance on embedded processors
+  cv::Mat zone_background_image_;  // Pre-rendered background with zone fills and static elements
+  std::vector<cv::Mat> cached_zone_masks_;  // Non-overlapping zone masks for fast overlay
+  cv::Mat cached_cumulative_mask_;  // Mask of all zones combined for outside-zone detection
+  bool visualization_cache_valid_ = false;  // Flag to track if cache needs rebuild
+  std::mutex visualization_cache_mutex_;  // Protect cache during dynamic reconfigure
 
   unsigned char * compressed_depth_frame_ = nullptr;
   unsigned char * compressed_ab_frame_ = nullptr;
@@ -683,10 +802,11 @@ private:
   bool enable_floor_paint_ = false;
 
   /**
-   * @brief Floor height with offset for Threshold Y based floor detection.
+   * @brief Height threshold above floor in meters - objects below this height 
+   *        are considered floor (used when RANSAC floor detection is disabled).
    *
    */
-  float fallback_floor_height_offset_mtr_ = 0.1f;
+  float floor_height_threshold_mtr_ = 0.1f;
 
   /**
    * @brief    This is the scale factor to scale the input image.
@@ -706,12 +826,27 @@ private:
   {
     int ab_threshold;
     int confidence_threshold;
-    double safety_bubble_radius_in_mtr;
-    int shape_of_safety_bubble;
     int safety_bubble_detection_sensitivity;
     bool enable_ransac_floor_detection;
     bool enable_floor_paint;
+    float floor_height_threshold_mtr;
     bool enable_safety_bubble_zone_visualization;
+    
+    // Multi-zone parameters (3 zones) - all dimensions in meters
+    int zone1_shape;
+    double zone1_size_x_mtr;
+    double zone1_size_z_mtr;
+    bool zone1_enabled;
+    
+    int zone2_shape;
+    double zone2_size_x_mtr;
+    double zone2_size_z_mtr;
+    bool zone2_enabled;
+    
+    int zone3_shape;
+    double zone3_size_x_mtr;
+    double zone3_size_z_mtr;
+    bool zone3_enabled;
   };
 
   TunableParameters tunable_params_;
@@ -750,24 +885,6 @@ private:
         }
       }
 
-      if (param.get_name() == "param_safety_zone_radius_in_mtr") {
-        if (tunable_params_.safety_bubble_radius_in_mtr != param.as_double()) {
-          tunable_params_.safety_bubble_radius_in_mtr = param.as_double();
-          RCLCPP_INFO(
-            this->get_logger(), "The value of safety bubble radius is changed to %s",
-            param.value_to_string().c_str());
-        }
-      }
-
-      if (param.get_name() == "param_safety_bubble_shape") {
-        if (tunable_params_.shape_of_safety_bubble != param.as_int()) {
-          tunable_params_.shape_of_safety_bubble = param.as_int();
-          RCLCPP_INFO(
-            this->get_logger(), "The value of param_safety_bubble_shape is changed to %s",
-            param.value_to_string().c_str());
-        }
-      }
-
       if (param.get_name() == "param_safety_bubble_sensitivity") {
         if (tunable_params_.safety_bubble_detection_sensitivity != param.as_int()) {
           tunable_params_.safety_bubble_detection_sensitivity = param.as_int();
@@ -795,6 +912,15 @@ private:
         }
       }
 
+      if (param.get_name() == "param_floor_height_threshold_mtr") {
+        if (tunable_params_.floor_height_threshold_mtr != param.as_double()) {
+          tunable_params_.floor_height_threshold_mtr = param.as_double();
+          RCLCPP_INFO(
+            this->get_logger(), "The value of param_floor_height_threshold_mtr is changed to %s",
+            param.value_to_string().c_str());
+        }
+      }
+
       if (param.get_name() == "param_enable_safety_bubble_zone_visualization") {
         if (tunable_params_.enable_safety_bubble_zone_visualization != param.as_bool()) {
           tunable_params_.enable_safety_bubble_zone_visualization = param.as_bool();
@@ -804,72 +930,62 @@ private:
             param.value_to_string().c_str());
         }
       }
-    }
+
+      // Zone 1 parameters
+      if (param.get_name() == "param_zone1_shape") {
+        tunable_params_.zone1_shape = param.as_int();
+        RCLCPP_INFO(this->get_logger(), "Zone 1 shape changed to %d", tunable_params_.zone1_shape);
+      }
+      if (param.get_name() == "param_zone1_radius_z_mtr") {
+        tunable_params_.zone1_size_z_mtr = param.as_double();
+        RCLCPP_INFO(this->get_logger(), "Zone 1 radius/z changed to %.3f m", tunable_params_.zone1_size_z_mtr);
+      }
+      if (param.get_name() == "param_zone1_width_x_mtr") {
+        tunable_params_.zone1_size_x_mtr = param.as_double();
+        RCLCPP_INFO(this->get_logger(), "Zone 1 width/x changed to %.3f m", tunable_params_.zone1_size_x_mtr);
+      }
+      if (param.get_name() == "param_zone1_enabled") {
+        tunable_params_.zone1_enabled = param.as_bool();
+        RCLCPP_INFO(this->get_logger(), "Zone 1 enabled changed to %d", tunable_params_.zone1_enabled);
+      }
+
+      // Zone 2 parameters
+      if (param.get_name() == "param_zone2_shape") {
+        tunable_params_.zone2_shape = param.as_int();
+        RCLCPP_INFO(this->get_logger(), "Zone 2 shape changed to %d", tunable_params_.zone2_shape);
+      }
+      if (param.get_name() == "param_zone2_radius_z_mtr") {
+        tunable_params_.zone2_size_z_mtr = param.as_double();
+        RCLCPP_INFO(this->get_logger(), "Zone 2 radius/z changed to %.3f m", tunable_params_.zone2_size_z_mtr);
+      }
+      if (param.get_name() == "param_zone2_width_x_mtr") {
+        tunable_params_.zone2_size_x_mtr = param.as_double();
+        RCLCPP_INFO(this->get_logger(), "Zone 2 width/x changed to %.3f m", tunable_params_.zone2_size_x_mtr);
+      }
+      if (param.get_name() == "param_zone2_enabled") {
+        tunable_params_.zone2_enabled = param.as_bool();
+        RCLCPP_INFO(this->get_logger(), "Zone 2 enabled changed to %d", tunable_params_.zone2_enabled);
+      }
+
+      // Zone 3 parameters
+      if (param.get_name() == "param_zone3_shape") {
+        tunable_params_.zone3_shape = param.as_int();
+        RCLCPP_INFO(this->get_logger(), "Zone 3 shape changed to %d", tunable_params_.zone3_shape);
+      }
+      if (param.get_name() == "param_zone3_radius_z_mtr") {
+        tunable_params_.zone3_size_z_mtr = param.as_double();
+        RCLCPP_INFO(this->get_logger(), "Zone 3 radius/z changed to %.3f m", tunable_params_.zone3_size_z_mtr);
+      }
+      if (param.get_name() == "param_zone3_width_x_mtr") {
+        tunable_params_.zone3_size_x_mtr = param.as_double();
+        RCLCPP_INFO(this->get_logger(), "Zone 3 width/x changed to %.3f m", tunable_params_.zone3_size_x_mtr);
+      }
+      if (param.get_name() == "param_zone3_enabled") {
+        tunable_params_.zone3_enabled = param.as_bool();
+        RCLCPP_INFO(this->get_logger(), "Zone 3 enabled changed to %d", tunable_params_.zone3_enabled);
+      }
+    }    
     return result;
-  }
-
-  /**
-   * @brief updates the parameter of input image based on dynamic reconfigure.
-   *
-   */
-  void updateTunableParameters()
-  {
-    // setting AB threshold and confidence threshold values if they are changed.
-    if (ab_threshold_ != tunable_params_.ab_threshold) {
-      ab_threshold_ = tunable_params_.ab_threshold;
-      RCLCPP_INFO(this->get_logger(), "Changed AB threshold value is %d", ab_threshold_);
-      input_sensor_->setABinvalidationThreshold(ab_threshold_);
-    }
-
-    if (confidence_threshold_ != tunable_params_.confidence_threshold) {
-      confidence_threshold_ = tunable_params_.confidence_threshold;
-      RCLCPP_INFO(
-        this->get_logger(), "Changed Confidence threshold value is %d", confidence_threshold_);
-      input_sensor_->setConfidenceThreshold(confidence_threshold_);
-    }
-
-    if (safety_zone_radius_mtr_ != tunable_params_.safety_bubble_radius_in_mtr) {
-      safety_zone_radius_mtr_ = tunable_params_.safety_bubble_radius_in_mtr;
-      RCLCPP_INFO(
-        this->get_logger(), "Changed safety bubble radius in meter value is %lf",
-        safety_zone_radius_mtr_);
-    }
-
-    if (safety_bubble_shape_ != tunable_params_.shape_of_safety_bubble) {
-      safety_bubble_shape_ = tunable_params_.shape_of_safety_bubble;
-      RCLCPP_INFO(
-        this->get_logger(), "Changed shape of safety bubble value is %d", safety_bubble_shape_);
-    }
-
-    if (safety_bubble_sensitivity_ != tunable_params_.safety_bubble_detection_sensitivity) {
-      safety_bubble_sensitivity_ = tunable_params_.safety_bubble_detection_sensitivity;
-      RCLCPP_INFO(
-        this->get_logger(), "Changed Safety bubble detection sensitivity value is %d",
-        safety_bubble_sensitivity_);
-    }
-
-    if (enable_ransac_floor_detection_ != tunable_params_.enable_ransac_floor_detection) {
-      enable_ransac_floor_detection_ = tunable_params_.enable_ransac_floor_detection;
-      RCLCPP_INFO(
-        this->get_logger(), "Enable bit for ransac floor detection is changed to %d",
-        enable_ransac_floor_detection_);
-    }
-
-    if (enable_floor_paint_ != tunable_params_.enable_floor_paint) {
-      enable_floor_paint_ = tunable_params_.enable_floor_paint;
-      RCLCPP_INFO(
-        this->get_logger(), "Enable bit for floor paint is changed to  %d", enable_floor_paint_);
-    }
-
-    if (
-      enable_safety_bubble_zone_visualization_ !=
-      tunable_params_.enable_safety_bubble_zone_visualization) {
-      enable_safety_bubble_zone_visualization_ =
-        tunable_params_.enable_safety_bubble_zone_visualization;
-      RCLCPP_INFO(
-        this->get_logger(), "Enable bit for safety bubble zone visualization is changed to %d",
-        enable_safety_bubble_zone_visualization_);
-    }
   }
 
   int max_input_queue_length_ = 1;
@@ -913,13 +1029,16 @@ private:
     unsigned char * compressed_depth_frame, int compressed_depth_frame_size,
     unsigned char * compressed_ab_frame, int compressed_ab_frame_size);
 
-  int setZoneRadius();
+  adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult safetyBubbleDetection();
 
-  bool safetyBubbleDetection();
+  void publishZoneStatus(const adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult& detection_result);
+
+  void rebuildVisualizationCache();
 
   cv::Mat generateVisualizationImage(
     unsigned char * vcam_depth_image_floor_pixels_removed_8bpp,
-    unsigned short * vcam_depth_frame_with_floor, bool object_detected);
+    unsigned short * vcam_depth_frame_with_floor,
+    const adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult& detection_result);
 
   void safetyBubbleDetectorIOThreadPushOutputNode(
     ADI3DToFSafetyBubbleDetectorOutputInfo * new_output_node);

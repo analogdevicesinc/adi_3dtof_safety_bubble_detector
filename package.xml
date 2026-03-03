@@ -8,6 +8,7 @@
   <license>BSD</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
 
   <depend>cv_bridge</depend>
   <depend>std_msgs</depend>
@@ -21,10 +22,16 @@
   <depend>pcl_conversions</depend>
   <depend>pcl_ros</depend>   
   <depend>compressed_depth_image_transport</depend>
+  <depend>visualization_msgs</depend>
   
   <exec_depend>ros2launch</exec_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

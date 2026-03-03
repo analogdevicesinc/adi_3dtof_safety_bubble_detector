@@ -45,18 +45,18 @@ For example:
 Assume there are four modules present: cam1, cam2, cam3, and cam4. Each of them should have a unique IP address.
 |Module name|ip_address|
 |-----------|----------|
-|    cam1   | 10.41.0.1|
-|    cam2   | 10.42.0.1|
-|    cam3   | 10.43.0.1|
-|    cam4   | 10.44.0.1|
+|    cam1   | 192.168.56.1|
+|    cam2   | 192.168.57.1|
+|    cam3   | 192.168.58.1|
+|    cam4   | 192.168.59.1|
 
 
 ## Steps to change the ip address:
 On the *EVAL-ADTF3175D-NXZ* device:
 1. Update the "Address" field in ```/etc/systemd/network/20-wired-usb0.network``` file.
 2. Update the server address in ```/etc/ntp.conf```
-   (```server 10.4x.0.100 iburst```)
-   (```pool   10.4x.0.100 iburst```)
+   (```server 192.168.5x.100 iburst```)
+   (```pool   192.168.5x.100 iburst```)
 3. Reboot the device and login with the new ip
 
 Follow the instructions in the [Setting up Safety Bubble Detector for a Single sensor](../README.md) file to build ```adi_3dtof_safety_bubble_detector``` node on all the devices.
@@ -71,10 +71,14 @@ $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_
 At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start publishing the topics from ```cam1```
 
 ```
-/cam1/object_detected,
-/cam1/compressed_out_image,
-/cam1/depth_image,
+/cam1/zone_status
+/cam1/object_detected
+/cam1/out_image
+/cam1/out_image/compressed
+/cam1/depth_image
+/cam1/depth_image/compressedDepth
 /cam1/ab_image
+/cam1/ab_image/compressedDepth
 /cam1/camera_info
 ```
 
@@ -85,10 +89,14 @@ $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_
 At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start publishing the topics from ```cam2```
 
 ```
-/cam2/object_detected,
-/cam2/compressed_out_image,
-/cam2/depth_image,
+/cam2/zone_status
+/cam2/object_detected
+/cam2/out_image
+/cam2/out_image/compressed
+/cam2/depth_image
+/cam2/depth_image/compressedDepth
 /cam2/ab_image
+/cam2/ab_image/compressedDepth
 /cam2/camera_info
 ```
 
@@ -99,10 +107,14 @@ $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_
 At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start publishing the topics from ```cam3```
 
 ```
-/cam3/object_detected,
-/cam3/compressed_out_image,
-/cam3/depth_image,
+/cam3/zone_status
+/cam3/object_detected
+/cam3/out_image
+/cam3/out_image/compressed
+/cam3/depth_image
+/cam3/depth_image/compressedDepth
 /cam3/ab_image
+/cam3/ab_image/compressedDepth
 /cam3/camera_info
 ```
 
@@ -114,10 +126,14 @@ $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_
 At this stage, the *adi_3dtof_safety_bubble_detector* will be launched and start publishing the topics from ```cam4```
 
 ```
-/cam4/object_detected,
-/cam4/compressed_out_image,
-/cam4/depth_image,
+/cam4/zone_status
+/cam4/object_detected
+/cam4/out_image
+/cam4/out_image/compressed
+/cam4/depth_image
+/cam4/depth_image/compressedDepth
 /cam4/ab_image
+/cam4/ab_image/compressedDepth
 /cam4/camera_info
 ```
 
@@ -125,15 +141,18 @@ By now all the devices are running Safety Bubble Detector algorithm individually
 
 # adi_3dtof_safety_bubble_detector_stitch_host_node
 
-The **adi_3dtof_safety_bubble_detector_stitch_host_node** subscribes to bird's-eye view out_image from all cameras and merges them into a single bird's-eye view output.
+The **adi_3dtof_safety_bubble_detector_stitch_host_node** subscribes to zone status and output images from all cameras, combines the detections using logical OR, and merges them into a single stitched visualization.
 
 ## Building the package on host
 1. Clone the repo and checkout the correct release branch or tag into ros2 workspace directory
 
     ```bash
     $ cd ~/ros2_ws/src
-    $ git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.1.0
+    $ git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.2.0
     ```
+
+    > [!note]
+    > The stitch host node **does not require libaditof** - it only processes ROS topics from remote cameras. Use `-DSENSOR_CONNECTED=FALSE` to skip sensor dependencies when building.
 
 2. Install dependencies:
 
@@ -146,37 +165,72 @@ The **adi_3dtof_safety_bubble_detector_stitch_host_node** subscribes to bird's-e
 
     ```bash
     $ cd ~/ros2_ws/
-    $ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_SBD_STITCH_HOST_NODE=TRUE
+    $ colcon build --symlink-install --cmake-args \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DSENSOR_CONNECTED=FALSE \
+      -DBUILD_SBD_STITCH_HOST_NODE=TRUE
     $ source install/setup.bash
     ```
 
 4. Run adi_3dtof_safety_bubble_detector_stitch_host_node
 
    ```bash
-   $ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_four_camera_host_launch.py
+   # Launch with default 4 cameras [cam1,cam2,cam3,cam4]
+   $ ros2 launch adi_3dtof_safety_bubble_detector \
+       adi_3dtof_safety_bubble_detector_host_multiple_cameras_launch.py
+
+   # Or specify custom camera prefixes (1-4 cameras)
+   $ ros2 launch adi_3dtof_safety_bubble_detector \
+       adi_3dtof_safety_bubble_detector_host_multiple_cameras_launch.py \
+       camera_prefixes:="[cam1,cam2]"
    ```
 
 ## Published topics
 
-| Topic Name                               |   Description                                                                                 |
-|------------------------------------------|-----------------------------------------------------------------------------------------------|
-| **/combo_safety_bubble_out_image**       | 8-bit output image                                                                            |
-| **/combo_safety_bubble_object_detected** | Boolean topic indicates object detection                                                      |
+| Topic Name                                    | Description                                                                                 |
+|-----------------------------------------------|---------------------------------------------------------------------------------------------|
+| **/combo_safety_bubble/zone_status**          | Combined ZoneStatusArray from all cameras (logical OR of detections)                        |
+| **/combo_safety_bubble/zone_status_json**     | Combined zone status as JSON string (std_msgs/String) - **No custom message dependency**    |
+| **/combo_safety_bubble/out_image**            | Stitched 8-bit visualization image from all cameras                                         |
 
 ## Subscribed topics
 
 | Topic Name                   | Description                                                                     |
 |------------------------------|---------------------------------------------------------------------------------|
-| **/object_detected**         | Boolean topic indicates object detection                                        |
-| **/out_image/compressed**    | Subscribes to compressed output image from `adi_3dtof_safety_bubble_detector` node |
-| **/out_image**               | Subscribes to output image from `adi_3dtof_safety_bubble_detector` node         |
+| **/<camera_prefix>/zone_status**      | Zone status from each camera (e.g., /cam1/zone_status)                 |
+| **/<camera_prefix>/out_image/compressed** | Compressed output image from each camera (if compressed transport enabled) |
+| **/<camera_prefix>/out_image**            | Raw output image from each camera (if compressed transport disabled)   |
 
 ## Parameters
 
-| parameter                  | Type                     | Default           | Description                                                |
-|----------------------------|--------------------------|-------------------|------------------------------------------------------------|
-|**param_camera_prefixes**   | String array             | None              | In multi camera setup, camera prefix names of those cameras ex: [cam1, cam2, cam3] |
+| Parameter                  | Type           | Default                      | Description                                                |
+|----------------------------|----------------|------------------------------|------------------------------------------------------------|
+|**camera_prefixes**         | String array   | [cam1,cam2,cam3,cam4]        | Camera namespace prefixes (1-4 cameras). Examples: "[cam1]", "[cam1,cam2,cam3,cam4]" |
+|**use_compressed_transport**| Boolean        | true                         | Use compressed image transport (recommended for WiFi/remote) |
+|**update_rate_hz**          | Float          | 30.0                         | Processing rate in Hz (10-60 typical)                      |
+|**enable_rqt**              | Boolean        | true                         | Launch RQT GUI with perspective file                       |
 
+## Monitoring without Custom Messages
+
+The stitch host node publishes zone status as JSON on `/combo_safety_bubble/zone_status_json` (std_msgs/String), allowing you to monitor detections from any node without building the SBD package or installing custom messages.
+
+### View JSON Output:
+```bash
+$ ros2 topic echo /combo_safety_bubble/zone_status_json
+```
+
+### Python Monitoring Script:
+A ready-to-use Python script is provided in `scripts/zone_status_monitor.py`:
+
+```bash
+# Monitor with default topic
+$ python3 scripts/zone_status_monitor.py
+
+# Monitor with custom topic name
+$ python3 scripts/zone_status_monitor.py --topic /combo_safety_bubble/zone_status_json
+```
+
+For more details, see [scripts/README.md](../scripts/README.md).
 
 >[!note]
 >- Make sure that the ADI 3DToF Safety Bubble Detector node is already running on all the devices before running this node.

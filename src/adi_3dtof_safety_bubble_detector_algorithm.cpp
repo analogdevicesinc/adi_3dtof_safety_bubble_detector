@@ -13,51 +13,112 @@ using namespace std::chrono_literals;
 namespace enc = sensor_msgs::image_encodings;
 
 /**
- * @brief Updates the parameters of algorithm based on dynamic reconfigure.
- *
+ * @brief Updates algorithm parameters based on dynamic reconfigure.
+ *        This function handles algorithm-specific parameters (not sensor capture parameters).
+ *        Sensor parameters (AB threshold, confidence threshold) are handled in the input thread.
  */
 
 void ADI3DToFSafetyBubbleDetector::updateDynamicReconfigureVariablesProcessThread()
 {
-  if (
-    (safety_zone_radius_mtr_ != tunable_params_.safety_bubble_radius_in_mtr) ||
-    (safety_bubble_shape_ != tunable_params_.shape_of_safety_bubble)) {
-    safety_zone_radius_mtr_ = tunable_params_.safety_bubble_radius_in_mtr;
-    safety_zone_radius_pixels_ = setZoneRadius();
-    if (tunable_params_.shape_of_safety_bubble == 0) {
-      // Circular Safety Bubble
-      safety_bubble_zone_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
-      safety_bubble_zone_red_mask_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC3);
-      cv::circle(
-        safety_bubble_zone_, cv::Point(image_width_ / 2, image_height_ / 2),
-        safety_zone_radius_pixels_, 255, -1);
-      cv::circle(
-        safety_bubble_zone_red_mask_, cv::Point(image_width_ / 2, image_height_ / 2),
-        safety_zone_radius_pixels_, cv::Scalar(0, 0, 255), -1);
-    } else if (tunable_params_.shape_of_safety_bubble == 1) {
-      // Rectangular Safety Bubble
-      cv::Point top_left(
-        (image_width_ / 2) - safety_zone_radius_pixels_,
-        (image_height_ / 2) - safety_zone_radius_pixels_);
-      cv::Point bottom_right(
-        (image_width_ / 2) + safety_zone_radius_pixels_,
-        (image_height_ / 2) + safety_zone_radius_pixels_);
-
-      safety_bubble_zone_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
-      safety_bubble_zone_red_mask_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC3);
-      cv::rectangle(
-        safety_bubble_zone_, top_left, bottom_right, cv::Scalar(255, 255, 255), -1, 8, 0);
-      cv::rectangle(
-        safety_bubble_zone_red_mask_, top_left, bottom_right, cv::Scalar(0, 0, 255), -1, 8, 0);
-    }
+  // Update safety bubble sensitivity if changed
+  if (safety_bubble_sensitivity_ != tunable_params_.safety_bubble_detection_sensitivity) {
+    safety_bubble_sensitivity_ = tunable_params_.safety_bubble_detection_sensitivity;
+    RCLCPP_INFO(this->get_logger(), "Changed Safety bubble detection sensitivity value is %d",
+                safety_bubble_sensitivity_);
   }
 
-  safety_bubble_shape_ = tunable_params_.shape_of_safety_bubble;
-  safety_bubble_sensitivity_ = tunable_params_.safety_bubble_detection_sensitivity;
-  enable_ransac_floor_detection_ = tunable_params_.enable_ransac_floor_detection;
-  enable_floor_paint_ = tunable_params_.enable_floor_paint;
-  enable_safety_bubble_zone_visualization_ =
-    tunable_params_.enable_safety_bubble_zone_visualization;
+  // Update RANSAC floor detection flag if changed
+  if (enable_ransac_floor_detection_ != tunable_params_.enable_ransac_floor_detection) {
+    enable_ransac_floor_detection_ = tunable_params_.enable_ransac_floor_detection;
+    RCLCPP_INFO(this->get_logger(), "Enable bit for ransac floor detection is changed to %d",
+                enable_ransac_floor_detection_);
+  }
+
+  // Update floor paint flag if changed
+  if (enable_floor_paint_ != tunable_params_.enable_floor_paint) {
+    enable_floor_paint_ = tunable_params_.enable_floor_paint;
+    RCLCPP_INFO(this->get_logger(), "Enable bit for floor paint is changed to %d", enable_floor_paint_);
+  }
+
+  // Update floor height threshold if changed
+  if (floor_height_threshold_mtr_ != tunable_params_.floor_height_threshold_mtr) {
+    floor_height_threshold_mtr_ = tunable_params_.floor_height_threshold_mtr;
+    RCLCPP_INFO(this->get_logger(), "Floor height threshold is changed to %.3f meters", floor_height_threshold_mtr_);
+  }
+
+  // Update safety bubble zone visualization flag if changed
+  if (enable_safety_bubble_zone_visualization_ != tunable_params_.enable_safety_bubble_zone_visualization) {
+    enable_safety_bubble_zone_visualization_ = tunable_params_.enable_safety_bubble_zone_visualization;
+    RCLCPP_INFO(this->get_logger(), "Enable bit for safety bubble zone visualization is changed to %d",
+                enable_safety_bubble_zone_visualization_);
+  }
+
+  // Update multi-zone configuration from tunable parameters
+  auto& zones = multi_zone_config_.getZones();
+  if (zones.size() >= 3) {
+    bool zones_changed = false;  // Local flag to track zone changes
+
+    // Zone 1
+    if (zones[0].shape != (tunable_params_.zone1_shape == 0 ? adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE : adi_3dtof_safety_bubble_detector::ZoneShape::RECTANGLE) ||
+        zones[0].radius_mtr != static_cast<float>(tunable_params_.zone1_size_z_mtr) ||
+        zones[0].x_dim_mtr != static_cast<float>(tunable_params_.zone1_size_x_mtr) ||
+        zones[0].z_dim_mtr != static_cast<float>(tunable_params_.zone1_size_z_mtr) ||
+        zones[0].enabled != tunable_params_.zone1_enabled) {
+      zones[0].shape = tunable_params_.zone1_shape == 0 ? adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE : adi_3dtof_safety_bubble_detector::ZoneShape::RECTANGLE;
+      zones[0].radius_mtr = static_cast<float>(tunable_params_.zone1_size_z_mtr);  // Radius stored in size_z
+      zones[0].x_dim_mtr = static_cast<float>(tunable_params_.zone1_size_x_mtr);
+      zones[0].z_dim_mtr = static_cast<float>(tunable_params_.zone1_size_z_mtr);
+      zones[0].enabled = tunable_params_.zone1_enabled;
+      zones_changed = true;
+      RCLCPP_INFO(this->get_logger(), "Zone 1 updated: shape=%d, z=%.3f m (radius), x=%.3f m, enabled=%d",
+                  tunable_params_.zone1_shape, tunable_params_.zone1_size_z_mtr,
+                  tunable_params_.zone1_size_x_mtr, tunable_params_.zone1_enabled);
+    }
+
+    // Zone 2
+    if (zones[1].shape != (tunable_params_.zone2_shape == 0 ? adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE : adi_3dtof_safety_bubble_detector::ZoneShape::RECTANGLE) ||
+        zones[1].radius_mtr != static_cast<float>(tunable_params_.zone2_size_z_mtr) ||
+        zones[1].x_dim_mtr != static_cast<float>(tunable_params_.zone2_size_x_mtr) ||
+        zones[1].z_dim_mtr != static_cast<float>(tunable_params_.zone2_size_z_mtr) ||
+        zones[1].enabled != tunable_params_.zone2_enabled) {
+      zones[1].shape = tunable_params_.zone2_shape == 0 ? adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE : adi_3dtof_safety_bubble_detector::ZoneShape::RECTANGLE;
+      zones[1].radius_mtr = static_cast<float>(tunable_params_.zone2_size_z_mtr);  // Radius stored in size_z
+      zones[1].x_dim_mtr = static_cast<float>(tunable_params_.zone2_size_x_mtr);
+      zones[1].z_dim_mtr = static_cast<float>(tunable_params_.zone2_size_z_mtr);
+      zones[1].enabled = tunable_params_.zone2_enabled;
+      zones_changed = true;
+      RCLCPP_INFO(this->get_logger(), "Zone 2 updated: shape=%d, z=%.3f m (radius), x=%.3f m, enabled=%d",
+                  tunable_params_.zone2_shape, tunable_params_.zone2_size_z_mtr,
+                  tunable_params_.zone2_size_x_mtr, tunable_params_.zone2_enabled);
+    }
+
+    // Zone 3
+    if (zones[2].shape != (tunable_params_.zone3_shape == 0 ? adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE : adi_3dtof_safety_bubble_detector::ZoneShape::RECTANGLE) ||
+        zones[2].radius_mtr != static_cast<float>(tunable_params_.zone3_size_z_mtr) ||
+        zones[2].x_dim_mtr != static_cast<float>(tunable_params_.zone3_size_x_mtr) ||
+        zones[2].z_dim_mtr != static_cast<float>(tunable_params_.zone3_size_z_mtr) ||
+        zones[2].enabled != tunable_params_.zone3_enabled) {
+      zones[2].shape = tunable_params_.zone3_shape == 0 ? adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE : adi_3dtof_safety_bubble_detector::ZoneShape::RECTANGLE;
+      zones[2].radius_mtr = static_cast<float>(tunable_params_.zone3_size_z_mtr);  // Radius stored in size_z
+      zones[2].x_dim_mtr = static_cast<float>(tunable_params_.zone3_size_x_mtr);
+      zones[2].z_dim_mtr = static_cast<float>(tunable_params_.zone3_size_z_mtr);
+      zones[2].enabled = tunable_params_.zone3_enabled;
+      zones_changed = true;
+      RCLCPP_INFO(this->get_logger(), "Zone 3 updated: shape=%d, z=%.3f m (radius), x=%.3f m, enabled=%d",
+                  tunable_params_.zone3_shape, tunable_params_.zone3_size_z_mtr,
+                  tunable_params_.zone3_size_x_mtr, tunable_params_.zone3_enabled);
+    }
+
+    // Check if zones changed and reinitialize MultiZoneDetector if needed
+    if (zones_changed && multi_zone_detector_) {
+      multi_zone_detector_->initialize(multi_zone_config_);
+      
+      // Invalidate visualization cache so it gets rebuilt with new zone config
+      visualization_cache_valid_ = false;
+      
+      RCLCPP_INFO(this->get_logger(), "MultiZoneDetector reinitialized due to zone parameter changes");
+    }
+  }
 }
 
 /**
@@ -185,21 +246,18 @@ bool ADI3DToFSafetyBubbleDetector::runSafetyBubbleDetection()
 
   // Perform detection.
   PROFILE_FUNCTION_START(SafetyBubble_SAFETYBUBBLEDETECTION)
-  bool object_detected = safetyBubbleDetection();
+  last_detection_result_ = safetyBubbleDetection();
   PROFILE_FUNCTION_END(SafetyBubble_SAFETYBUBBLEDETECTION)
 
-  // Publish output flag here,
-  // this ensures that we publish the detection flag immediately without waiting for any further processing.
-  // Other optional messages ar published in an other thread.
-  std_msgs::msg::Bool obj_detect;
-  obj_detect.data = object_detected;
-  object_detected_publisher_->publish(obj_detect);
+  // Publish zone status immediately after detection
+  // Zone status includes per-zone detection information
+  publishZoneStatus(last_detection_result_);
 
   // The generate visualization and publish topics are run in a different thread,
   // so, copy the buffers needed by these functions to a queue
   if (new_output_frame != nullptr) {
     new_output_frame->frame_number_ = frame_number_;
-    new_output_frame->object_detected_ = object_detected;
+    new_output_frame->detection_result_ = last_detection_result_;  // Pass detection results via queue
     new_output_frame->ransac_floor_detection_status_ = ransac_floor_detection_status_;
     new_output_frame->ransac_iterations_ = ransac_iterations_;
     new_output_frame->noise_count_ = noise_count_;
@@ -386,40 +444,24 @@ void ADI3DToFSafetyBubbleDetector::convertDepthCamToVirtualCamFrame()
   } else {
     image_proc_utils_->transformFrameWithFloorRemoval(
       &in_img, &out_img, &depth_intrinsics_, &depth_extrinsics_, &vcam_intrinsics_,
-      &vcam_extrinsics, &valid_roi_, fallback_floor_height_offset_mtr_, virtual_camera_height_mtr_,
+      &vcam_extrinsics, &valid_roi_, floor_height_threshold_mtr_, virtual_camera_height_mtr_,
       xyz_frame_, compute_point_cloud_enable_);
   }
 }
 
 /**
- *@brief Sets the number of pixels for a particular in Zone radius.
+ *@brief Calculates and stores pixels_per_meter_ for zone size calculations.
+ *       This is used by MultiZoneDetector to convert zone dimensions
+ *       from meters/cm to pixels.
  *
- *@return Zone radius in pixels.
+ *@return Zone radius in pixels for zone 1 (for backward compatibility).
  */
-int ADI3DToFSafetyBubbleDetector::setZoneRadius()
-{
-  // Obtain focal lengths from intrinsic camera matrix, K.
-
-  float focal_length_x = vcam_intrinsics_.camera_matrix[0];
-  float focal_length_y = vcam_intrinsics_.camera_matrix[4];
-  float focal_length = (focal_length_x + focal_length_y) / 2.0f;
-
-  // Calculate horizontal Field-of-View (radians), length opposite FoV angle, and number of pixels-per-metre.
-  float fov = 2.0f * atan2(image_width_ / 2.0f, focal_length);
-  float fov_in_meters = 2.0f * virtual_camera_height_mtr_ * tan(fov / 2.0f);
-  float pixels_per_meter = image_width_ / fov_in_meters;
-
-  // Set number of pixels for zone radius based on pre-defined radius in metres.
-  return ((int)(pixels_per_meter * safety_zone_radius_mtr_));
-}
-
 /**
- *@brief This function detects objects in safety bubble.
+ *@brief This function detects objects in all safety zones using MultiZoneDetector.
  *
- *@return true if object is present in safety bubble.
- *@return false if object is absent in safety bubble.
+ *@return MultiZoneDetectionResult containing per-zone detection status.
  */
-bool ADI3DToFSafetyBubbleDetector::safetyBubbleDetection()
+adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult ADI3DToFSafetyBubbleDetector::safetyBubbleDetection()
 {
   // init
   memset(
@@ -441,54 +483,23 @@ bool ADI3DToFSafetyBubbleDetector::safetyBubbleDetection()
   out_img.bpp = 8;
   ImageProcUtils::convertTo8BppImage(&in_img, &out_img, scale_factor);
 
-  // Mask with safety zone and find number of non-zero pixels.
-  cv::Mat m_vcam_final_image;
-  m_vcam_final_image = cv::Mat(
-    cv::Size(image_width_, image_height_), CV_8UC1, vcam_depth_image_floor_pixels_removed_8bpp_);
-
-  // Create ROI images for anding.
-  cv::Mat m_vcam_final_image_roi =
-    m_vcam_final_image(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
-
-  cv::Mat safety_bubble_zone_roi =
-    safety_bubble_zone_(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
-
-  cv::Mat masked_image_roi;
-  cv::bitwise_and(m_vcam_final_image_roi, safety_bubble_zone_roi, masked_image_roi);
-
-  bool object_detected = false;
-
-#if 1
-  // CCL
-  // Binarize
-  cv::Mat masked_image_roi_bin;
-  cv::threshold(masked_image_roi, masked_image_roi_bin, 0, 255, cv::THRESH_BINARY);
-
-  // Perform cc
-  cv::Mat labels, stats, centroids;
-  int num_lables = cv::connectedComponentsWithStats(
-    masked_image_roi_bin, labels, stats, centroids, 4, CV_16U, cv::CCL_WU);
-  // First label is background, so ignore
-  for (int i = 1; i < num_lables; i++) {
-    int blob_area = stats.at<int>(i, cv::CC_STAT_AREA);
-    if (blob_area > safety_bubble_sensitivity_) {
-      object_detected = true;
-      break;
-    }
+  // Use MultiZoneDetector for multi-zone detection
+  if (multi_zone_detector_) {
+    // Update sensitivity in detector
+    multi_zone_detector_->setSensitivity(safety_bubble_sensitivity_);
+    
+    // Convert ADIImageROI to cv::Rect
+    cv::Rect roi(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height);
+    
+    // Perform multi-zone detection
+    auto result = multi_zone_detector_->detectZones(
+      vcam_depth_image_floor_pixels_removed_8bpp_, roi);
+    
+    return result;
   }
-#else
-  int rows = valid_roi_.height;
-  int cols = valid_roi_.width;
-  if (!masked_image_roi.empty()) {
-    unsigned char * ptr = (unsigned char *)masked_image_roi.data;
-    for (int i = 0; i < (rows * cols); i++) {
-      if (*ptr++ != 0) {
-        object_detected = true;
-        break;
-      }
-    }
-  }
-#endif
 
-  return object_detected;
+  // Fallback: Return empty result if detector not initialized
+  adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult empty_result;
+  empty_result.timestamp = rclcpp::Clock().now();
+  return empty_result;
 }

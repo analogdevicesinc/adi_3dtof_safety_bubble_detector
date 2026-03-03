@@ -75,10 +75,13 @@ void ADI3DToFSafetyBubbleDetector::processOutput()
       output_node_queue_.pop();
       output_thread_mtx_.unlock();
 
-      // Generate Visualization image(_out_image).
+
+      // Generate Visualization image (out_image).
+      // Zone detection results are passed via the output queue node for proper threading.
       cv::Mat m_out_visualization_image = generateVisualizationImage(
         new_frame->vcam_depth_image_floor_pixels_removed_8bpp_,
-        new_frame->vcam_depth_frame_with_floor_, new_frame->object_detected_);
+        new_frame->vcam_depth_frame_with_floor_,
+        new_frame->detection_result_);
 
       // Publish visualization output image.
       PROFILE_FUNCTION_START(Publish_CompressImg)
@@ -104,7 +107,7 @@ void ADI3DToFSafetyBubbleDetector::processOutput()
       // Write outputs
       if (output_sensor_ != nullptr) {
         output_sensor_->write(
-          new_frame->frame_number_, new_frame->object_detected_, new_frame->depth_frame_with_floor_,
+          new_frame->frame_number_, new_frame->depth_frame_with_floor_,
           m_out_visualization_image, image_width_, image_height_,
           new_frame->ransac_floor_detection_status_, new_frame->ransac_iterations_,
           new_frame->noise_count_, new_frame->ransac_time_ms_);

@@ -204,44 +204,273 @@ void ADI3DToFSafetyBubbleDetector::publishImageAndCameraInfo(
 }
 
 /**
- * @brief Generates the output image for visualization.
+ * @brief Rebuilds the visualization cache with current zone configuration.
+ * 
+ * This function pre-computes static visualization elements that don't change
+ * between frames, significantly improving performance for embedded processors.
+ * Called when zone configuration changes via dynamic reconfigure.
+ * 
+ * Cached elements:
+ * - Zone background image with fills and status boxes
+ * - Non-overlapping zone masks for fast object overlay
+ * - Cumulative mask for outside-zone detection
+ */
+void ADI3DToFSafetyBubbleDetector::rebuildVisualizationCache()
+{
+  using namespace adi_3dtof_safety_bubble_detector;
+
+  std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
+
+  // Get current zone configuration
+  const auto& zones = multi_zone_config_.getZones();
+  int num_zones = static_cast<int>(zones.size());
+
+  // Lambda to get zone BGR color (bright colors for detected objects)
+  auto getZoneBGRColor = [](int zone_idx) -> cv::Scalar {
+    if (zone_idx == 0) {
+      return cv::Scalar(0, 0, 255);  // Red (BGR format)
+    } else if (zone_idx == 1) {
+      return cv::Scalar(0, 255, 255);  // Yellow
+    } else {
+      return cv::Scalar(0, 255, 0);  // Green
+    }
+  };
+
+  // Lambda to get zone fill color (dim colors for zone background)
+  auto getZoneFillColor = [](int zone_idx) -> cv::Scalar {
+    if (zone_idx == 0) {
+      return cv::Scalar(0, 0, 80);  // Dark red
+    } else if (zone_idx == 1) {
+      return cv::Scalar(0, 80, 80);  // Dark yellow
+    } else {
+      return cv::Scalar(0, 80, 0);  // Dark green
+    }
+  };
+
+  cv::Point center(image_width_ / 2, image_height_ / 2);
+
+  // Create cumulative masks for each zone
+  std::vector<cv::Mat> cumulative_masks(num_zones);
+  for (int z = 0; z < num_zones; z++) {
+    cumulative_masks[z] = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+
+    const ZoneConfig& zone = zones[z];
+
+    if (zone.shape == ZoneShape::CIRCLE) {
+      int radius_pixels = static_cast<int>(zone.radius_mtr * pixels_per_meter_);
+      cv::circle(cumulative_masks[z], center, radius_pixels, 255, -1);
+    } else {
+      int half_width_pixels = static_cast<int>(zone.x_dim_mtr * pixels_per_meter_);
+      int half_height_pixels = static_cast<int>(zone.z_dim_mtr * pixels_per_meter_);
+      cv::Point top_left(center.x - half_width_pixels, center.y - half_height_pixels);
+      cv::Point bottom_right(center.x + half_width_pixels, center.y + half_height_pixels);
+      cv::rectangle(cumulative_masks[z], top_left, bottom_right, 255, -1);
+    }
+  }
+
+  // Create non-overlapping zone masks and store in cache
+  cached_zone_masks_.resize(num_zones);
+  for (int z = 0; z < num_zones; z++) {
+    if (z == 0) {
+      cached_zone_masks_[z] = cumulative_masks[z].clone();
+    } else {
+      cached_zone_masks_[z] = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+      cv::subtract(cumulative_masks[z], cumulative_masks[z - 1], cached_zone_masks_[z]);
+    }
+  }
+
+  // Cache cumulative mask for outside-zone detection
+  if (num_zones > 0) {
+    cached_cumulative_mask_ = cumulative_masks[num_zones - 1].clone();
+  } else {
+    cached_cumulative_mask_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+  }
+
+  // Create background image with zone fills
+  zone_background_image_ = cv::Mat(image_height_, image_width_, CV_8UC3, cv::Scalar(0, 0, 0));
+
+  // Draw zone fills (from outer to inner so inner zones appear on top)
+  if (enable_safety_bubble_zone_visualization_) {
+    for (int z = num_zones - 1; z >= 0; z--) {
+      if (!zones[z].enabled) continue;
+
+      cv::Scalar fill_color = getZoneFillColor(z);
+      
+      // Use copyTo with mask for fast fill instead of per-pixel loop
+      cv::Mat fill_layer(image_height_, image_width_, CV_8UC3, fill_color);
+      fill_layer.copyTo(zone_background_image_, cached_zone_masks_[z]);
+    }
+  }
+
+  // Draw status indicator boxes in top-left corner on background
+  int box_size = 20;
+  int box_spacing = 5;
+  int start_x = 8;
+  int start_y = 10;
+
+  for (int z = 0; z < num_zones; z++) {
+    cv::Rect box(start_x + z * (box_size + box_spacing), start_y, box_size, box_size);
+    cv::Scalar zone_color = getZoneBGRColor(z);
+    cv::Scalar fill_color = getZoneFillColor(z);
+
+    if (!zones[z].enabled) {
+      // Disabled zone: gray box with X
+      cv::rectangle(zone_background_image_, box, cv::Scalar(80, 80, 80), -1);
+      cv::line(zone_background_image_, box.tl(), box.br(), cv::Scalar(128, 128, 128), 2);
+    } else {
+      // Enabled but not detected: filled with dim color, bright outline
+      cv::rectangle(zone_background_image_, box, fill_color, -1);
+      cv::rectangle(zone_background_image_, box, zone_color, 2);
+    }
+  }
+
+  // Add zone labels (1, 2, 3, ...) below status boxes on background
+  for (int z = 0; z < num_zones; z++) {
+    cv::Point text_pos(start_x + z * (box_size + box_spacing) + 5, start_y + box_size + 15);
+    cv::putText(
+      zone_background_image_, std::to_string(z + 1), text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.4,
+      cv::Scalar(255, 255, 255), 1);
+  }
+
+  visualization_cache_valid_ = true;
+}
+
+/**
+ * @brief Generates the output image for visualization with multi-zone support.
+ *
+ * This function creates a color-coded visualization where:
+ * - Zone 1 (innermost/danger): Red - objects detected within this zone
+ * - Zone 2 (warning): Yellow - objects detected within this zone  
+ * - Zone 3 (outer/safe): Green - objects detected within this zone
+ * - Objects outside all zones are shown in gray
+ *
+ * Zone configuration is loaded via dynamic reconfigure with 3 zones configured.
+ * Each zone can have independent shape (circle/rectangle) and dimensions.
  *
  * @param vcam_depth_image_floor_pixels_removed_8bpp - Vcam image with floor pixels removed
  * @param vcam_depth_frame_with_floor - Original vcam image
- * @param object_detected - Object detected flag
+ * @param detection_result - Multi-zone detection results passed from output queue
  * @return Visualization output(cv::Mat() type)
  */
 cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
   unsigned char * vcam_depth_image_floor_pixels_removed_8bpp,
-  unsigned short * vcam_depth_frame_with_floor, bool object_detected)
+  unsigned short * vcam_depth_frame_with_floor,
+  const adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult& detection_result)
 {
-  // Object to indicate the red zone inside the safety bubble.
-  cv::Mat red_zone = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
-
-  // Object to indicate the green zone inside the safety bubble.
-  cv::Mat green_zone = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+  using namespace adi_3dtof_safety_bubble_detector;
 
   cv::Mat m_vcam_final_image = cv::Mat(
     cv::Size(image_width_, image_height_), CV_8UC1, vcam_depth_image_floor_pixels_removed_8bpp);
 
-  cv::Mat m_vcam_final_image_roi =
-    m_vcam_final_image(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
-  cv::Mat safety_bubble_zone_roi =
-    safety_bubble_zone_(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
-  cv::Mat red_zone_roi =
-    red_zone(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
-  cv::Mat green_zone_roi =
-    green_zone(cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height));
+  // Rebuild cache if invalid
+  if (!visualization_cache_valid_) {
+    rebuildVisualizationCache();
+  }
 
-  cv::bitwise_and(m_vcam_final_image_roi, safety_bubble_zone_roi, red_zone_roi);
-  cv::bitwise_xor(m_vcam_final_image_roi, red_zone_roi, green_zone_roi);
+  // Get zones from multi-zone configuration
+  const std::vector<ZoneConfig> & zones = multi_zone_config_.getZones();
+  const int num_zones = static_cast<int>(zones.size());
 
-  // Fill Blue channel with zero pixels.
-  cv::Mat blue_channel = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+  if (num_zones == 0) {
+    RCLCPP_WARN_ONCE(this->get_logger(), "No zones configured, returning empty visualization");
+    return cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC3);
+  }
 
+  // Copy cached background image (mutex protected)
+  cv::Mat out_visualization_image;
+  {
+    std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
+    out_visualization_image = zone_background_image_.clone();
+  }
+
+  // Define zone colors (needed for detected object overlay and status box updates)
+  auto getZoneBGRColor = [](int zone_idx) -> cv::Scalar {
+    if (zone_idx == 0) {
+      return cv::Scalar(0, 0, 255);  // Red (danger)
+    } else if (zone_idx == 1) {
+      return cv::Scalar(0, 255, 255);  // Yellow (warning)
+    } else {
+      return cv::Scalar(0, 255, 0);  // Green (safe)
+    }
+  };
+
+  auto getZoneFillColor = [](int zone_idx) -> cv::Scalar {
+    if (zone_idx == 0) {
+      return cv::Scalar(0, 0, 80);  // Dark red
+    } else if (zone_idx == 1) {
+      return cv::Scalar(0, 80, 80);  // Dark yellow
+    } else {
+      return cv::Scalar(0, 80, 0);  // Dark green
+    }
+  };
+
+  // Apply ROI if valid
+  cv::Rect roi = cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height);
+  if (roi.width <= 0 || roi.height <= 0 || roi.x + roi.width > image_width_ || roi.y + roi.height > image_height_) {
+    roi = cv::Rect(0, 0, image_width_, image_height_);
+  }
+
+  cv::Mat vcam_roi = m_vcam_final_image(roi);
+
+  // Track detection status for each zone
+  std::vector<bool> zone_detected(num_zones, false);
+
+  // Get detection status from passed detection_result parameter
+  for (int z = 0; z < num_zones; z++) {
+    if (z < static_cast<int>(detection_result.zone_detected.size())) {
+      zone_detected[z] = detection_result.zone_detected[z];
+    }
+  }
+
+  // Overlay detected objects using cached masks (fast operation)
+  for (int z = 0; z < num_zones; z++) {
+    if (!zones[z].enabled || !zone_detected[z]) continue;
+
+    cv::Scalar zone_color = getZoneBGRColor(z);
+    cv::Mat zone_color_layer(image_height_, image_width_, CV_8UC3, zone_color);
+
+    // Fast masked copy: only copy where mask is non-zero AND detected in vcam
+    cv::Mat combined_mask;
+    cv::Mat zone_mask_roi, vcam_roi_full;
+    
+    {
+      std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
+      cv::Mat zone_mask_roi_local = cached_zone_masks_[z](roi);
+      combined_mask = cv::Mat::zeros(roi.size(), CV_8UC1);
+      cv::bitwise_and(vcam_roi, zone_mask_roi_local, combined_mask);
+    }
+
+    // Create full-size mask with ROI
+    cv::Mat full_combined_mask = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+    combined_mask.copyTo(full_combined_mask(roi));
+
+    // Fast vectorized copy using mask
+    zone_color_layer.copyTo(out_visualization_image, full_combined_mask);
+  }
+
+  // Handle pixels outside all zones (show as gray) - fast operation
+  if (num_zones > 0) {
+    cv::Mat outside_all_zones;
+    {
+      std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
+      cv::bitwise_not(cached_cumulative_mask_, outside_all_zones);
+    }
+    
+    cv::Mat outside_roi = outside_all_zones(roi);
+    cv::Mat detected_outside;
+    cv::bitwise_and(vcam_roi, outside_roi, detected_outside);
+
+    // Create full-size mask
+    cv::Mat full_outside_mask = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+    detected_outside.copyTo(full_outside_mask(roi));
+
+    // Fast vectorized fill
+    cv::Mat gray_layer(image_height_, image_width_, CV_8UC3, cv::Scalar(180, 180, 180));
+    gray_layer.copyTo(out_visualization_image, full_outside_mask);
+  }
+
+  // Paint floor pixels if enabled (keep optimized)
   if (enable_floor_paint_) {
-    // OR with floor pixels to make the visualization better
-    // Get separate masks of pixels inside and outside safety bubble.
     int scale_factor = 8192;
     ADIImage in_img;
     in_img.data = vcam_depth_frame_with_floor;
@@ -253,45 +482,54 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     out_img.data = vcam_depth_frame_8bpp_;
     out_img.bpp = 8;
     ImageProcUtils::convertTo8BppImage(&in_img, &out_img, scale_factor);
-    m_vcam_final_image = cv::Mat(image_height_, image_width_, CV_8UC1, vcam_depth_frame_8bpp_);
-    for (int i = 0; i < image_height_; i++) {
-      for (int j = 0; j < image_width_; j++) {
-        if (m_vcam_final_image.at<unsigned char>(i, j) != 0) {
-          if (
-            (green_zone.at<unsigned char>(i, j) == 0) && (red_zone.at<unsigned char>(i, j) == 0)) {
-            green_zone.at<unsigned char>(i, j) = 128;
-            red_zone.at<unsigned char>(i, j) = 128;
-            blue_channel.at<unsigned char>(i, j) = 128;
-          }
-        }
-      }
+    cv::Mat floor_image = cv::Mat(image_height_, image_width_, CV_8UC1, vcam_depth_frame_8bpp_);
+
+    // Optimize floor painting with OpenCV operations
+    cv::Mat floor_mask = (floor_image > 0);
+    cv::Mat floor_color(image_height_, image_width_, CV_8UC3, cv::Scalar(100, 100, 100));
+    
+    // Only paint where floor exists and it's not already showing detected objects
+    // This requires checking against zone fill colors
+    for (int z = 0; z < num_zones; z++) {
+      if (!zones[z].enabled) continue;
+      
+      cv::Scalar fill_color = getZoneFillColor(z);
+      
+      // Create mask for this zone fill color
+      cv::Mat zone_fill_mask;
+      cv::inRange(out_visualization_image, fill_color, fill_color, zone_fill_mask);
+      
+      // Paint floor in zone fill areas
+      floor_color.copyTo(out_visualization_image, zone_fill_mask & floor_mask);
     }
+    
+    // Also paint floor in black areas
+    cv::Mat black_mask;
+    cv::inRange(out_visualization_image, cv::Scalar(0, 0, 0), cv::Scalar(0, 0, 0), black_mask);
+    floor_color.copyTo(out_visualization_image, black_mask & floor_mask);
   }
-  // push 3 zones
-  // no object, objects within safety zone, objects outside the safety zone.
-  std::vector<cv::Mat> channels;
-  channels.push_back(blue_channel);
-  channels.push_back(green_zone);
-  channels.push_back(red_zone);
 
-  cv::Mat out_visualization_image;
-  cv::merge(channels, out_visualization_image);
+  // Update status indicator boxes for detected zones (only update boxes, not labels)
+  int box_size = 20;
+  int box_spacing = 5;
+  int start_x = 8;
+  int start_y = 10;
 
-  // A Box for indicating the detection status(green:empty, red/occupied)
-  cv::Rect box = cv::Rect(8, 10, 20, 20);
-  cv::Scalar color = cv::Scalar(0, 255, 0);
-  if (object_detected) {
-    color = cv::Scalar(0, 0, 255);
+  for (int z = 0; z < num_zones; z++) {
+    if (!zones[z].enabled) continue;  // Skip disabled zones (already drawn gray with X)
+    
+    cv::Rect box(start_x + z * (box_size + box_spacing), start_y, box_size, box_size);
+    
+    if (zone_detected[z]) {
+      // Detected: filled box with bright zone color (update from cached state)
+      cv::Scalar zone_color = getZoneBGRColor(z);
+      cv::rectangle(out_visualization_image, box, zone_color, -1);
+    }
+    // Else: keep cached state (filled with dim color, bright outline)
   }
-  cv::rectangle(out_visualization_image, box, color, -1, 8, 0);
 
-  if (enable_safety_bubble_zone_visualization_) {
-    double alpha = 0.12;
-    // blend the overlay with the source image
-    cv::addWeighted(
-      safety_bubble_zone_red_mask_, alpha, out_visualization_image, 1 - alpha, 0,
-      out_visualization_image);
-  }
+  // Labels are already drawn in cached background, no need to redraw
+
   return out_visualization_image;
 }
 
@@ -350,4 +588,57 @@ void ADI3DToFSafetyBubbleDetector::publishRVLCompressedImageAsRosMsg(
     compressed_img, compressed_img_size);
 
   publisher->publish(*compressed_payload_ptr);
+}
+
+/**
+ * @brief Publishes zone status array based on detection results
+ *
+ * @param detection_result Multi-zone detection result from MultiZoneDetector
+ */
+void ADI3DToFSafetyBubbleDetector::publishZoneStatus(
+  const adi_3dtof_safety_bubble_detector::MultiZoneDetectionResult& detection_result)
+{
+  if (!zone_status_publisher_) {
+    return;
+  }
+
+  adi_3dtof_safety_bubble_detector::msg::ZoneStatusArray zone_status_msg;
+  zone_status_msg.header.stamp = detection_result.timestamp;
+  zone_status_msg.header.frame_id = optical_camera_link_;
+  
+  const auto& zones = multi_zone_config_.getZones();
+  zone_status_msg.num_zones = static_cast<int>(zones.size());
+
+  for (size_t i = 0; i < zones.size(); ++i) {
+    adi_3dtof_safety_bubble_detector::msg::ZoneStatus zone_status;
+    zone_status.id = zones[i].id;
+    zone_status.enabled = zones[i].enabled;
+    zone_status.detected = (i < detection_result.zone_detected.size()) ? 
+                            detection_result.zone_detected[i] : false;
+    
+    // Set shape
+    zone_status.shape = (zones[i].shape == adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE) ? 
+                        "circle" : "rectangle";
+    
+    // Set dimensions based on shape
+    if (zones[i].shape == adi_3dtof_safety_bubble_detector::ZoneShape::CIRCLE) {
+      zone_status.radius_mtr = zones[i].radius_mtr;
+      zone_status.x_dim_mtr = 0.0f;
+      zone_status.z_dim_mtr = 0.0f;
+    } else {
+      zone_status.radius_mtr = 0.0f;
+      zone_status.x_dim_mtr = zones[i].x_dim_mtr * 2.0f;  // x_dim_mtr is half-dimension
+      zone_status.z_dim_mtr = zones[i].z_dim_mtr * 2.0f;  // z_dim_mtr is half-dimension
+    }
+    
+    // Set color (4 floats for RGBA)
+    zone_status.color[0] = zones[i].color_rgba[0];
+    zone_status.color[1] = zones[i].color_rgba[1];
+    zone_status.color[2] = zones[i].color_rgba[2];
+    zone_status.color[3] = zones[i].color_rgba[3];
+
+    zone_status_msg.zones.push_back(zone_status);
+  }
+
+  zone_status_publisher_->publish(zone_status_msg);
 }

@@ -1,0 +1,11 @@
+# GetZoneConfig.srv
+# Service to retrieve current zone configuration
+
+# Request
+int32 zone_id                 # Zone ID to query (0 = all zones)
+---
+# Response
+bool success                  # Whether query was successful
+string message                # Status message or error description
+int32 num_zones               # Total number of configured zones
+adi_3dtof_safety_bubble_detector/ZoneStatus[] zones  # Zone configurations

@@ -23,7 +23,7 @@ The Node publishes the detection flag and the output visualization image as the 
  > Refer the [EVAL-ADTF3175D-NXZ User Guide](https://wiki.analog.com/resources/eval/user-guides/eval-adtf3175d-nxz) to ensure the Eval module has adequate power supply during operation.
 
  > [!important]
- > The EVAL-ADTF3175D-NXZ Sensor module must have a firmware version of at least **5.2.5.0**. Refer to [user guide](https://wiki.analog.com/resources/eval/user-guides/eval-adtf3175d-nxz-upgrade-firmware) on firmware upgrade, or see [upgrading the firmware](#upgrading-the-firmware).
+ > The EVAL-ADTF3175D-NXZ Sensor module must have a firmware version of at least **6.0.0**. Refer to [user guide](https://wiki.analog.com/resources/eval/user-guides/eval-adtf3175d-nxz-upgrade-firmware) on firmware upgrade, or see [upgrading the firmware](#upgrading-the-firmware).
 
 ![Connection Diagram](./doc/images/connection_diagram.png)
 
@@ -31,17 +31,18 @@ The Node publishes the detection flag and the output visualization image as the 
 # adi_3dtof_safety_bubble_detector_node
 
 ## Operation Modes
-This package has three different operation modes. Refer to the following intra-links to setup the package accordingly.
-1. [Camera Sensor Mode](#camera-sensor-mode)
-2. [File-IO Mode](#file-io-mode)
-3. [Network Mode](#network-mode)
+This package has four different operation modes. Refer to the following intra-links to setup the package accordingly.
+1. [Camera Sensor Mode](#camera-sensor-mode) - Runs on sensor module
+2. [File-IO Mode](#file-io-mode) - Replays recorded data
+3. [Network Mode](#network-mode) - Connects to sensor over network
+4. [Multi-Camera Stitch Host Node](#multi-camera-stitch-host-node) - Combines multiple camera feeds (**no libaditof required**)
 
 ## Camera Sensor Mode
 The package is built on the sensor module and directly interfaces with the image sensor. The adi_3dtof_nxp_ubuntu_20_04_relx.x.x.img provided for the EVAL-ADTF3175D-NXZ sensor already contains this ROS package and is pre-built. In order to use this package, first we need to connect the sensor to the PC, and then SSH into it:
 
 1. SSH into the Sensor
 ```bash
-ssh analog@10.43.0.1
+ssh analog@192.168.56.1
 Password: analog
 ```
 
@@ -86,8 +87,13 @@ mkdir -p ~/ros2_ws/src
 2. Clone the repository
 ```bash
 cd ~/ros2_ws/src
-git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.1.0
-cd ..
+git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.2.0
+git clone https://github.com/analogdevicesinc/libaditof.git -b v6.1.0
+
+# Initialize the submodules for libaditof
+cd libaditof
+git submodule update --init --recursive
+cd ~/ros2_ws/
 ```
 3. Build the workspace
 ```bash
@@ -114,7 +120,7 @@ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_si
 > Enabling file input may slow down the speed of publishing.
 
 ## Network Mode
-The sensor can be operated in network mode where depth and AB (Active Brightness) images are fetched over the local area network. And safety bubble alogirthm is run on the host. The simplest way to use this is to connect the sensor directly to the PC so that a network interface via USB is created with a default IP address of `10.43.0.1`. In order to use the Network mode, follow the following steps:
+The sensor can be operated in network mode where depth and AB (Active Brightness) images are fetched over the local area network. And safety bubble alogirthm is run on the host. The simplest way to use this is to connect the sensor directly to the PC so that a network interface via USB is created with a default IP address of `192.168.56.1`. In order to use the Network mode, follow the following steps:
 
 ### Building the package
 The `adi_3dtof_safety_bubble_detector` depends on [libaditof](https://github.com/analogdevicesinc/libaditof) in order to communicate with the sensor. So we will need to build this in the same workspace as `adi_3dtof_safety_bubble_detector`.
@@ -123,8 +129,8 @@ The `adi_3dtof_safety_bubble_detector` depends on [libaditof](https://github.com
 ```bash
 mkdir -p ~/ros2_ws/src
 cd ~/ros2_ws/src
-git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.1.0
-git clone https://github.com/analogdevicesinc/libaditof.git -v v6.0.1
+git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.2.0
+git clone https://github.com/analogdevicesinc/libaditof.git -b v6.1.0
 
 # Initialize the submodules for libaditof
 cd libaditof
@@ -146,7 +152,7 @@ source install/setup.bash
 ### Running the node in network mode
 To run the node in network mode, run
 ```bash
-ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera_launch.py arg_input_sensor_mode:=3 arg_input_sensor_ip:=10.43.0.1
+ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_single_camera_launch.py arg_input_sensor_mode:=3 arg_input_sensor_ip:=192.168.56.1
 ```
 > [!note]
 > The `arg_input_sensor_mode:=3` sets the node to operate in network mode. This value can be adjusted in the launch file. `arg_input_sensor_ip` must be set to the IP of the sensor. Refer to the [parameter](#parameters) table to see what other parameters can be passed.
@@ -196,45 +202,134 @@ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_si
 | Other modes       | -             | -          |
 
 ## Topics
+
+### Single Camera Node Topics
 | Topic                              | Description                                                                                         |
 |------------------------------------|-----------------------------------------------------------------------------------------------------|
 | **/depth_image**                   | 16-bit Depth image                                                                                  |
 | **/ab_image**                      | 16-bit IR image                                                                                     |
 | **/out_image**                     | 8-bit output image                                                                                  |
 | **/object_detected**               | Boolean to indicate the object detection                                                            |
+| **/zone_status**                   | ZoneStatusArray message containing multi-zone detection status                                      |
 | **/camera_info**                   | Camera info                                                                                         |
 | **/depth_image/compressedDepth**   | 16-bit Depth image from `adi_3dtof_safety_bubble_detector` node compressed with RVL compression (if enabled)  |
 | **/ab_image/compressedDepth**      | 16-bit IR image from `adi_3dtof_safety_bubble_detector` node compressed with RVL compression (if enabled)     |
 | **/out_image/compressed**          | 8-bit output image from `adi_3dtof_safety_bubble_detector` node compressed with JPEG compression (if enabled) |
+
+### Multi-Camera Stitch Host Node Topics
+| Topic                                       | Description                                                                                         |
+|---------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| **/combo_safety_bubble/zone_status**        | Combined ZoneStatusArray from all cameras (logical OR of detections)                                |
+| **/combo_safety_bubble/zone_status_json**   | Combined zone status as JSON string (std_msgs/String) - **No custom message dependency required**   |
+| **/combo_safety_bubble/out_image**          | Stitched visualization image from all cameras                                                        |
 
 ## Output Images
 
 Sample output images are shown below:
 
 ```/cam1/depth_image```
-![depth_image](doc/images/depth_image.png)
+![depth_image](./doc/images/depth_image.png)
 
 ```/cam1/ab_image```
-![ab_image](doc/images/ab_image.png)
+![ab_image](./doc/images/ab_image.png)
 
 ```/cam1/out_image```
-![output_image](doc/images/out_image.png)
+![output_image](./doc/images/out_image.png)
 
 > [!note]
 > To setup Safety Bubble Detector with 4 devices refer [Setting up 4 device for Safety Bubble Detector](doc/4DevicesSetup.md)
+
+## Multi-Camera Stitch Host Node
+
+The package includes a **stitch host node** (`adi_3dtof_safety_bubble_detector_stitch_host_node`) that integrates multiple SBD nodes running on remote devices/robots. This node subscribes to zone status and output images from 1-4 cameras and combines them for centralized monitoring.
+
+### Key Features:
+- Supports 1-4 cameras with time-synchronized processing
+- Combines zone detection using logical OR (detection if ANY camera detects)
+- Creates stitched visualization with detection indicators
+- Publishes both custom message and **JSON format** for easy integration without custom message dependencies
+- Configurable update rate and compressed/uncompressed image transport
+- **Does not require libaditof** - lightweight host-only build
+
+### Building the Stitch Host Node
+
+The stitch host node does **not require libaditof** since it only subscribes to ROS topics. You can build it with:
+
+```bash
+# Create workspace
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+
+# Clone only the SBD package
+git clone https://github.com/analogdevicesinc/adi_3dtof_safety_bubble_detector.git -b v2.2.0
+
+cd ~/ros2_ws
+
+# Install dependencies
+rosdep install --from-paths src --ignore-src -r -y
+
+# Build with stitch host node flag (no sensor connection needed)
+colcon build --symlink-install --cmake-args \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSENSOR_CONNECTED=FALSE \
+  -DBUILD_SBD_STITCH_HOST_NODE=TRUE
+
+# Source the workspace
+source install/setup.bash
+```
+
+> [!note]
+> The stitch host node is a **host-only** application that does not interact with sensors directly. It only processes ROS messages from other SBD nodes running on remote devices.
+
+### Running the Stitch Host Node:
+```bash
+# Launch with default 4 cameras
+ros2 launch adi_3dtof_safety_bubble_detector \
+    adi_3dtof_safety_bubble_detector_host_multiple_cameras_launch.py
+
+# Launch with 2 cameras using compressed transport
+ros2 launch adi_3dtof_safety_bubble_detector \
+    adi_3dtof_safety_bubble_detector_host_multiple_cameras_launch.py \
+    arg_camera_prefixes:="[cam0,cam1]" \
+    arg_use_compressed:=true \
+    arg_update_rate_hz:=20.0
+```
+
+### Subscribing Without Custom Messages:
+
+The stitch host publishes zone status as JSON on `/combo_safety_bubble/zone_status_json` (std_msgs/String), allowing you to monitor detections without building the SBD package:
+
+```bash
+# Monitor zone status using standard ROS tools
+ros2 topic echo /combo_safety_bubble/zone_status_json
+```
+
+For Python integration examples and monitoring scripts, see the [scripts/](scripts/) directory.
 
 
 ## Parameter Tuning
 Some parameters of *adi_3dtof_safety_bubble_detector* ROS node can be modifed during runtime. The Perspective file is present in ```rqt_config/``` folder.
 
 ![Dynamic Reconfigure](./doc/images/adi_3dtof_safety_bubble_detector_rqt.png)
-The GUI can be started by running the following command.
+
+The RQT GUI can be started by running the following command.
 
 ```bash
 ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_rqt_launch.py
 ```
 
 Make sure the *adi_3dtof_safety_bubble_detector node* is already running before executing this command.
+
+> [!note]
+> For multi-camera setups, RQT is automatically launched with the stitch host node. RViz can be added separately if needed for 3D visualization.
+
+## Utility Scripts
+
+The `scripts/` directory contains utility scripts for monitoring and working with the Safety Bubble Detector:
+
+- **zone_status_monitor.py**: Python script to monitor zone status via JSON topic without custom message dependencies
+
+Refer to [scripts/README.md](scripts/README.md) for detailed usage instructions and integration examples.
 
 # Appendix:
 ## Updating Date and Time
@@ -243,41 +338,59 @@ The customized ubuntu image loaded into the sensor will automatically connect to
 ## Build Flags
 | Flag Name                      | Type     | Default Value     |  Description                                                                       |
 |--------------------------------|----------|-------------------|------------------------------------------------------------------------------------|
-| **SENSOR_CONNECTED**           | Boolean  | TRUE              | Set to `TRUE` if a sensor is connected, otherwise set to `FALSE` for File-IO mode. |
-| **BUILD_SBD_STITCH_HOST_NODE** | Boolean  | FALSE             | Set to `TRUE` to build the `adi_3dtof_safety_bubble_detector_stitch_host_node`.    |
+| **SENSOR_CONNECTED**           | Boolean  | TRUE              | Set to `TRUE` if a sensor is connected, otherwise set to `FALSE` for File-IO mode or stitch host node. |
+| **BUILD_SBD_STITCH_HOST_NODE** | Boolean  | FALSE             | Set to `TRUE` to build the `adi_3dtof_safety_bubble_detector_stitch_host_node`. **Does not require libaditof**. |
+
+### Build Configuration Examples:
+
+```bash
+# Sensor Mode
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DSENSOR_CONNECTED=TRUE
+
+# File-IO Mode
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DSENSOR_CONNECTED=FALSE
+
+# Stitch Host Node Only (NO libaditof required)
+colcon build --symlink-install --cmake-args \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSENSOR_CONNECTED=FALSE \
+  -DBUILD_SBD_STITCH_HOST_NODE=TRUE
+```
 
 ## Upgrading the firmware
 To check the existing firmware version, log into the sensor device via SSH.
 ```bash
-$ ssh analog@10.43.0.1
+$ ssh analog@192.168.56.1
    Username: analog
    Password: analog
 ```
 Run command:
 ```bash
-cd ~/Workspace/Tool/ctrl_app
-./ctrl_app
+cd ~/Workspace/Tools/ctrl_app
+$ ./ctrl_app infile.txt
 ```
 Your output would look like this:
 ```
-V4L2 custom control interface app version: 1.0.1
+Burst Control app version: 1.1.0
 59 31
-05 02 05 00 61 35 39 61 66 61 64 36 64 36 63 38 65 37 66 62 31 35 33 61 32 64 62 38 63 64 38 38 34 30 33 35 39 66 31 37 31 39 35 61
+00 00
+06 00 00 00 31 39 61 39 65 33 31 36 39 62 37 30 63 64 38 32 65 66 64 37 31 32 36 65 37 65 39 63 30 30 37 36 66 36 34 36 63 39 63 36
 59 31
 ```
-The first four values in the third line represents the version number, in this case, 5.2.5.0. If it is lower than this value, follow these steps below to update.
-1. On your PC, install ADI ToF SDK release [v6.0.1](https://github.com/analogdevicesinc/ToF/releases/tag/v6.0.1)
+The first four values in the fourth line represents the version number, in this case, 6.0.0.0. We recommend using firmware version **6.0.0** or higher. If it is lower than this value, follow these steps below to update.
+
+1. On your PC, install ADI ToF SDK release [v6.1.0](https://github.com/analogdevicesinc/ToF/releases/tag/v6.1.0)
 2. After installing goto the installation folder and run the following commands to download the image
    ```bash
-   cd ~/Analog\ Devices/ToF_Evaluation_Ubuntu_ADTF3175D-Relx.x.x/image.
+   cd ~/Analog\ Devices/ToF_Evaluation_Ubuntu_ADTF3175D-Relx.x.x/image
    chmod +x get_image.sh
-   ./get_image.sh.
+   ./get_image.sh
    ```
-   - Latest image will be downloaded at ./image path as NXP-Img-Relx.x.x-ADTF3175D-.zip. Extract this folder using unzip NXP-Img-Relx.x.x-ADTF3175D-.zip command.
+   - Latest image will be downloaded at ./image path as NXP-Img-Relx.x.x-ADTF3175D-xxxxxxx.zip. Extract this folder using unzip command.
    - This folder contains the NXP image and ADSD3500 firmware(Fw_Update_x.x.x.bin).
-3. Run the following command to copy the Fimware to the NXP device
+3. Run the following command to copy the Firmware to the NXP device
    ```bash
-   $ scp Fw_Update_5.2.5.bin analog@10.43.0.1:/home/analog/Workspace
+   $ scp Fw_Update_x.x.x.bin analog@192.168.56.1:/home/analog/Workspace
       Username: analog
       Password: analog
    ```
@@ -285,13 +398,16 @@ The first four values in the third line represents the version number, in this c
 > [!warning]
 > Do NOT reboot the board or interrupt the process as this may corrupt the module
    ```bash
-   $ ssh analog@10.43.0.1
+   $ ssh analog@192.168.56.1
       Username: analog
       Password: analog
    $ cd Workspace/ToF/build/examples/data_collect/
    $ ./data_collect --fw ~/Workspace/Fw_Update_x.x.x.bin config/config_default.json
    ```
 -  Reboot the board after the successful operation.
+
+For more detailed instructions, refer to:
+[ADTF3175D Firmware Update Guide](https://github.com/analogdevicesinc/ToF/blob/rel-6.1.0/doc/user-guide/ADTF3175D-EvalKit-610.md#11-update-firmware)
 
 <br>
 <br>

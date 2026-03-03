@@ -53,7 +53,7 @@ public:
   virtual void open(
     std::string input_file_name, int image_width, int image_height, OutputFlag output_flag) = 0;
   virtual void write(
-    int frame_number, bool object_detected, unsigned short * depth_frame_16bpp,
+    int frame_number, unsigned short * depth_frame_16bpp,
     const cv::Mat & out_visualization_image, int image_width, int image_height,
     bool floor_detection_status, int ransac_iterations, int noise_count,
     float ransac_time_ms_out) = 0;
