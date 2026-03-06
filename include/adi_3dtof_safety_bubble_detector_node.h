@@ -263,7 +263,7 @@ public:
     // number of connected pixels to trigger object detection
     rcl_interfaces::msg::ParameterDescriptor safety_bubble_sensitivity_descriptor{};
     rcl_interfaces::msg::IntegerRange safety_bubble_sensitivity_range;
-    safety_bubble_sensitivity_range.set__from_value(1).set__to_value(50);
+    safety_bubble_sensitivity_range.set__from_value(1).set__to_value(5000);
     safety_bubble_sensitivity_descriptor.integer_range = {safety_bubble_sensitivity_range};
     safety_bubble_sensitivity_descriptor.description =
       "total number of connected pixels in an image to detect as a object";

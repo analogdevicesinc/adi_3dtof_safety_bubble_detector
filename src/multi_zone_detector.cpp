@@ -120,10 +120,10 @@ cv::Mat MultiZoneDetector::createZoneMask(const ZoneConfig & zone) const
   int center_x = image_width_ / 2;
   int center_y = image_height_ / 2;
 
-  if (!zone.enabled) {
-    return mask;
-  }
-
+  // Always create the geometric mask, even if zone is disabled
+  // This ensures that exclusive masks for outer zones correctly exclude inner zones
+  // The enabled flag is checked during detection, not during mask generation
+  
   if (zone.shape == ZoneShape::CIRCLE) {
     int radius_pixels = radiusMtrToPixels(zone.radius_mtr);
     cv::circle(mask, cv::Point(center_x, center_y), radius_pixels, 255, -1);

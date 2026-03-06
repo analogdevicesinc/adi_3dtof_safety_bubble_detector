@@ -468,23 +468,70 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     return cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC3);
   }
 
-  // PERFORMANCE OPTIMIZED: Start with depth image base, then selectively overlay cached content
+  // PERFORMANCE OPTIMIZED: Start with depth image base
   cv::Mat out_visualization_image;
   cv::cvtColor(m_vcam_final_image, out_visualization_image, cv::COLOR_GRAY2BGR);
 
-  // PERFORMANCE: Efficiently blend cached zone fills with depth image using mask
-  // The cache only has zone fills for enabled zones; disabled zones are black (0,0,0)
-  // We selectively copy cache content where it's non-black to preserve depth data elsewhere
+  // LAYER 1: Paint floor pixels FIRST (if enabled) - this goes underneath everything
+  if (enable_floor_paint_) {
+    int scale_factor = 8192;
+    ADIImage in_img;
+    in_img.data = vcam_depth_frame_with_floor;
+    in_img.bpp = 16;
+    in_img.width = image_width_;
+    in_img.height = image_height_;
+    in_img.roi = nullptr;
+    ADIImage out_img = in_img;
+    out_img.data = vcam_depth_frame_8bpp_;
+    out_img.bpp = 8;
+    ImageProcUtils::convertTo8BppImage(&in_img, &out_img, scale_factor);
+    cv::Mat floor_image = cv::Mat(image_height_, image_width_, CV_8UC1, vcam_depth_frame_8bpp_);
+
+    // Paint floor pixels with gray color wherever floor is detected (single copyTo)
+    cv::Mat floor_mask = (floor_image > 0);
+    cv::Mat floor_color(image_height_, image_width_, CV_8UC3, cv::Scalar(100, 100, 100));
+    floor_color.copyTo(out_visualization_image, floor_mask);
+  }
+
+  // LAYER 2: Blend cached zone fills with 50% transparency, keep status boxes opaque
   {
     std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
     
-    // Create mask of where cache has content (non-black pixels)
-    cv::Mat cache_content_mask;
-    cv::cvtColor(zone_background_image_, cache_content_mask, cv::COLOR_BGR2GRAY);
-    cache_content_mask = (cache_content_mask > 0);
+    // Combine all zone masks to identify zone fill regions
+    cv::Mat zone_fills_mask = cv::Mat::zeros(image_height_, image_width_, CV_8UC1);
+    for (const auto& mask : cached_zone_masks_) {
+      cv::bitwise_or(zone_fills_mask, mask, zone_fills_mask);
+    }
     
-    // Copy cache content (zone fills + status boxes) over depth image using mask
-    zone_background_image_.copyTo(out_visualization_image, cache_content_mask);
+    // Create UI mask for status boxes and labels (top-left corner, ~100 pixels width x 50 height)
+    cv::Mat ui_mask = cv::Mat::zeros(image_height_, image_width_, CV_8UC1);
+    cv::Rect ui_region(0, 0, 100, 50);
+    ui_mask(ui_region).setTo(255);
+    
+    // Separate zone fills mask from UI region
+    cv::Mat zone_only_mask;
+    cv::subtract(zone_fills_mask, ui_mask, zone_only_mask);
+    
+    // PERFORMANCE OPTIMIZATION: Find bounding box of zones and blend only that region
+    cv::Rect zone_bbox = cv::boundingRect(zone_fills_mask);
+    if (zone_bbox.area() > 0) {
+      // Extract ROIs for only the zone bounding box region (reduces processing by 50-75%)
+      cv::Mat base_roi = out_visualization_image(zone_bbox);
+      cv::Mat overlay_roi = zone_background_image_(zone_bbox);
+      cv::Mat mask_roi = zone_only_mask(zone_bbox);
+      
+      // Blend with 50% transparency only within zone bounding box
+      cv::Mat blended_roi;
+      cv::addWeighted(base_roi, 0.5, overlay_roi, 0.5, 0, blended_roi);
+      blended_roi.copyTo(base_roi, mask_roi);
+    }
+    
+    // Copy UI elements (status boxes) with full opacity
+    cv::Mat ui_content_mask;
+    cv::cvtColor(zone_background_image_, ui_content_mask, cv::COLOR_BGR2GRAY);
+    ui_content_mask = (ui_content_mask > 0);
+    cv::bitwise_and(ui_content_mask, ui_mask, ui_content_mask);
+    zone_background_image_.copyTo(out_visualization_image, ui_content_mask);
   }
 
   // Apply ROI if valid
@@ -505,7 +552,7 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     }
   }
 
-  // PERFORMANCE: Overlay detected objects with bright colors (fast masked operations)
+  // LAYER 3: Overlay detected objects with bright colors (fast masked operations)
   for (int z = 0; z < num_zones; z++) {
     if (!zones[z].enabled || !zone_detected[z]) continue;
 
@@ -530,7 +577,7 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     zone_color_layer.copyTo(out_visualization_image, full_combined_mask);
   }
 
-  // PERFORMANCE: Handle pixels outside all enabled zones using cached masks
+  // LAYER 4: Handle pixels outside all enabled zones using cached masks
   {
     std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
     
@@ -558,28 +605,7 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     gray_layer.copyTo(out_visualization_image, full_outside_mask);
   }
 
-  // PERFORMANCE: Paint floor pixels if enabled (single mask operation)
-  if (enable_floor_paint_) {
-    int scale_factor = 8192;
-    ADIImage in_img;
-    in_img.data = vcam_depth_frame_with_floor;
-    in_img.bpp = 16;
-    in_img.width = image_width_;
-    in_img.height = image_height_;
-    in_img.roi = nullptr;
-    ADIImage out_img = in_img;
-    out_img.data = vcam_depth_frame_8bpp_;
-    out_img.bpp = 8;
-    ImageProcUtils::convertTo8BppImage(&in_img, &out_img, scale_factor);
-    cv::Mat floor_image = cv::Mat(image_height_, image_width_, CV_8UC1, vcam_depth_frame_8bpp_);
-
-    // Paint floor pixels with gray color wherever floor is detected (single copyTo)
-    cv::Mat floor_mask = (floor_image > 0);
-    cv::Mat floor_color(image_height_, image_width_, CV_8UC3, cv::Scalar(100, 100, 100));
-    floor_color.copyTo(out_visualization_image, floor_mask);
-  }
-
-  // Draw status indicator boxes at top-left corner
+  // LAYER 5: Draw status indicator boxes at top-left corner (always on top)
   int box_size = 20;
   int box_spacing = 5;
   int start_x = 8;
