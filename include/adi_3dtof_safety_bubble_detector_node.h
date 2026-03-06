@@ -379,6 +379,22 @@ public:
     tunable_params_.zone3_size_x_mtr = this->get_parameter("param_zone3_width_x_mtr").get_parameter_value().get<double>();
     tunable_params_.zone3_enabled = this->get_parameter("param_zone3_enabled").get_parameter_value().get<bool>();
 
+    // Validate that zones are progressively larger
+    if (tunable_params_.zone1_size_z_mtr >= tunable_params_.zone2_size_z_mtr ||
+        tunable_params_.zone2_size_z_mtr >= tunable_params_.zone3_size_z_mtr) {
+      RCLCPP_ERROR(this->get_logger(), 
+                   "Zone radius/z validation failed! Zones must be progressively larger: Zone1(%.3f) < Zone2(%.3f) < Zone3(%.3f)",
+                   tunable_params_.zone1_size_z_mtr, tunable_params_.zone2_size_z_mtr, tunable_params_.zone3_size_z_mtr);
+      throw std::runtime_error("Zone configuration invalid: Zone 1 < Zone 2 < Zone 3 required for radius/z");
+    }
+    if (tunable_params_.zone1_size_x_mtr >= tunable_params_.zone2_size_x_mtr ||
+        tunable_params_.zone2_size_x_mtr >= tunable_params_.zone3_size_x_mtr) {
+      RCLCPP_ERROR(this->get_logger(), 
+                   "Zone width/x validation failed! Zones must be progressively larger: Zone1(%.3f) < Zone2(%.3f) < Zone3(%.3f)",
+                   tunable_params_.zone1_size_x_mtr, tunable_params_.zone2_size_x_mtr, tunable_params_.zone3_size_x_mtr);
+      throw std::runtime_error("Zone configuration invalid: Zone 1 < Zone 2 < Zone 3 required for width/x");
+    }
+
     // Default 3 zones.
     multi_zone_config_.setNumZones(3);
 
@@ -404,6 +420,22 @@ public:
       tunable_params_.zone3_enabled = zones[2].enabled;
 
       //RCLCPP_INFO(this->get_logger(), "Initialized tunable parameters from loaded zone configuration");
+
+      // Validate loaded zone configuration
+      if (tunable_params_.zone1_size_z_mtr >= tunable_params_.zone2_size_z_mtr ||
+          tunable_params_.zone2_size_z_mtr >= tunable_params_.zone3_size_z_mtr) {
+        RCLCPP_ERROR(this->get_logger(), 
+                     "Loaded zone config validation failed! Zones must be progressively larger: Zone1(%.3f) < Zone2(%.3f) < Zone3(%.3f)",
+                     tunable_params_.zone1_size_z_mtr, tunable_params_.zone2_size_z_mtr, tunable_params_.zone3_size_z_mtr);
+        throw std::runtime_error("Loaded zone configuration invalid: Zone 1 < Zone 2 < Zone 3 required for radius/z");
+      }
+      if (tunable_params_.zone1_size_x_mtr >= tunable_params_.zone2_size_x_mtr ||
+          tunable_params_.zone2_size_x_mtr >= tunable_params_.zone3_size_x_mtr) {
+        RCLCPP_ERROR(this->get_logger(), 
+                     "Loaded zone config validation failed! Zones must be progressively larger: Zone1(%.3f) < Zone2(%.3f) < Zone3(%.3f)",
+                     tunable_params_.zone1_size_x_mtr, tunable_params_.zone2_size_x_mtr, tunable_params_.zone3_size_x_mtr);
+        throw std::runtime_error("Loaded zone configuration invalid: Zone 1 < Zone 2 < Zone 3 required for width/x");
+      }
 
       // Update ROS parameters to reflect loaded configuration (so RQT GUI shows correct values)
       this->set_parameter(rclcpp::Parameter("param_zone1_shape", tunable_params_.zone1_shape));
@@ -865,6 +897,10 @@ private:
     rcl_interfaces::msg::SetParametersResult result;
     result.successful = true;
     result.reason = "success";
+    
+    // Backup current zone parameters in case validation fails
+    TunableParameters backup_params = tunable_params_;
+    
     // Copy the parameters vector to a local variable.
     for (const auto & param : parameters) {
       if (param.get_name() == "param_ab_threshold") {
@@ -934,57 +970,126 @@ private:
       // Zone 1 parameters
       if (param.get_name() == "param_zone1_shape") {
         tunable_params_.zone1_shape = param.as_int();
-        RCLCPP_INFO(this->get_logger(), "Zone 1 shape changed to %d", tunable_params_.zone1_shape);
       }
       if (param.get_name() == "param_zone1_radius_z_mtr") {
         tunable_params_.zone1_size_z_mtr = param.as_double();
-        RCLCPP_INFO(this->get_logger(), "Zone 1 radius/z changed to %.3f m", tunable_params_.zone1_size_z_mtr);
       }
       if (param.get_name() == "param_zone1_width_x_mtr") {
         tunable_params_.zone1_size_x_mtr = param.as_double();
-        RCLCPP_INFO(this->get_logger(), "Zone 1 width/x changed to %.3f m", tunable_params_.zone1_size_x_mtr);
       }
       if (param.get_name() == "param_zone1_enabled") {
         tunable_params_.zone1_enabled = param.as_bool();
-        RCLCPP_INFO(this->get_logger(), "Zone 1 enabled changed to %d", tunable_params_.zone1_enabled);
       }
 
       // Zone 2 parameters
       if (param.get_name() == "param_zone2_shape") {
         tunable_params_.zone2_shape = param.as_int();
-        RCLCPP_INFO(this->get_logger(), "Zone 2 shape changed to %d", tunable_params_.zone2_shape);
       }
       if (param.get_name() == "param_zone2_radius_z_mtr") {
         tunable_params_.zone2_size_z_mtr = param.as_double();
-        RCLCPP_INFO(this->get_logger(), "Zone 2 radius/z changed to %.3f m", tunable_params_.zone2_size_z_mtr);
       }
       if (param.get_name() == "param_zone2_width_x_mtr") {
         tunable_params_.zone2_size_x_mtr = param.as_double();
-        RCLCPP_INFO(this->get_logger(), "Zone 2 width/x changed to %.3f m", tunable_params_.zone2_size_x_mtr);
       }
       if (param.get_name() == "param_zone2_enabled") {
         tunable_params_.zone2_enabled = param.as_bool();
-        RCLCPP_INFO(this->get_logger(), "Zone 2 enabled changed to %d", tunable_params_.zone2_enabled);
       }
 
       // Zone 3 parameters
       if (param.get_name() == "param_zone3_shape") {
         tunable_params_.zone3_shape = param.as_int();
-        RCLCPP_INFO(this->get_logger(), "Zone 3 shape changed to %d", tunable_params_.zone3_shape);
       }
       if (param.get_name() == "param_zone3_radius_z_mtr") {
         tunable_params_.zone3_size_z_mtr = param.as_double();
-        RCLCPP_INFO(this->get_logger(), "Zone 3 radius/z changed to %.3f m", tunable_params_.zone3_size_z_mtr);
       }
       if (param.get_name() == "param_zone3_width_x_mtr") {
         tunable_params_.zone3_size_x_mtr = param.as_double();
-        RCLCPP_INFO(this->get_logger(), "Zone 3 width/x changed to %.3f m", tunable_params_.zone3_size_x_mtr);
       }
       if (param.get_name() == "param_zone3_enabled") {
         tunable_params_.zone3_enabled = param.as_bool();
-        RCLCPP_INFO(this->get_logger(), "Zone 3 enabled changed to %d", tunable_params_.zone3_enabled);
       }
-    }    
+    }
+    
+    // Validate that zones are progressively larger: Zone 1 < Zone 2 < Zone 3
+    if (tunable_params_.zone1_size_z_mtr >= tunable_params_.zone2_size_z_mtr) {
+      result.successful = false;
+      result.reason = "REJECTED: Zone 1 radius/z must be smaller than Zone 2 radius/z";
+      RCLCPP_ERROR(this->get_logger(), "%s", result.reason.c_str());
+      RCLCPP_WARN(this->get_logger(), 
+                  "Invalid zone configuration! Zone1_z(%.3f) >= Zone2_z(%.3f). Change rejected - using previous values.",
+                  tunable_params_.zone1_size_z_mtr, tunable_params_.zone2_size_z_mtr);
+      RCLCPP_INFO(this->get_logger(), "Current valid zones: Z1(%.3f,%.3f) < Z2(%.3f,%.3f) < Z3(%.3f,%.3f)",
+                  backup_params.zone1_size_z_mtr, backup_params.zone1_size_x_mtr,
+                  backup_params.zone2_size_z_mtr, backup_params.zone2_size_x_mtr,
+                  backup_params.zone3_size_z_mtr, backup_params.zone3_size_x_mtr);
+      tunable_params_ = backup_params;  // Restore previous valid values
+      return result;
+    }
+    if (tunable_params_.zone2_size_z_mtr >= tunable_params_.zone3_size_z_mtr) {
+      result.successful = false;
+      result.reason = "REJECTED: Zone 2 radius/z must be smaller than Zone 3 radius/z";
+      RCLCPP_ERROR(this->get_logger(), "%s", result.reason.c_str());
+      RCLCPP_WARN(this->get_logger(), 
+                  "Invalid zone configuration! Zone2_z(%.3f) >= Zone3_z(%.3f). Change rejected - using previous values.",
+                  tunable_params_.zone2_size_z_mtr, tunable_params_.zone3_size_z_mtr);
+      RCLCPP_INFO(this->get_logger(), "Current valid zones: Z1(%.3f,%.3f) < Z2(%.3f,%.3f) < Z3(%.3f,%.3f)",
+                  backup_params.zone1_size_z_mtr, backup_params.zone1_size_x_mtr,
+                  backup_params.zone2_size_z_mtr, backup_params.zone2_size_x_mtr,
+                  backup_params.zone3_size_z_mtr, backup_params.zone3_size_x_mtr);
+      tunable_params_ = backup_params;  // Restore previous valid values
+      return result;
+    }
+    if (tunable_params_.zone1_size_x_mtr >= tunable_params_.zone2_size_x_mtr) {
+      result.successful = false;
+      result.reason = "REJECTED: Zone 1 width/x must be smaller than Zone 2 width/x";
+      RCLCPP_ERROR(this->get_logger(), "%s", result.reason.c_str());
+      RCLCPP_WARN(this->get_logger(), 
+                  "Invalid zone configuration! Zone1_x(%.3f) >= Zone2_x(%.3f). Change rejected - using previous values.",
+                  tunable_params_.zone1_size_x_mtr, tunable_params_.zone2_size_x_mtr);
+      RCLCPP_INFO(this->get_logger(), "Current valid zones: Z1(%.3f,%.3f) < Z2(%.3f,%.3f) < Z3(%.3f,%.3f)",
+                  backup_params.zone1_size_z_mtr, backup_params.zone1_size_x_mtr,
+                  backup_params.zone2_size_z_mtr, backup_params.zone2_size_x_mtr,
+                  backup_params.zone3_size_z_mtr, backup_params.zone3_size_x_mtr);
+      tunable_params_ = backup_params;  // Restore previous valid values
+      return result;
+    }
+    if (tunable_params_.zone2_size_x_mtr >= tunable_params_.zone3_size_x_mtr) {
+      result.successful = false;
+      result.reason = "REJECTED: Zone 2 width/x must be smaller than Zone 3 width/x";
+      RCLCPP_ERROR(this->get_logger(), "%s", result.reason.c_str());
+      RCLCPP_WARN(this->get_logger(), 
+                  "Invalid zone configuration! Zone2_x(%.3f) >= Zone3_x(%.3f). Change rejected - using previous values.",
+                  tunable_params_.zone2_size_x_mtr, tunable_params_.zone3_size_x_mtr);
+      RCLCPP_INFO(this->get_logger(), "Current valid zones: Z1(%.3f,%.3f) < Z2(%.3f,%.3f) < Z3(%.3f,%.3f)",
+                  backup_params.zone1_size_z_mtr, backup_params.zone1_size_x_mtr,
+                  backup_params.zone2_size_z_mtr, backup_params.zone2_size_x_mtr,
+                  backup_params.zone3_size_z_mtr, backup_params.zone3_size_x_mtr);
+      tunable_params_ = backup_params;  // Restore previous valid values
+      return result;
+    }
+    
+    // Validation passed - log zone configuration changes if any zone parameters were updated
+    bool zone_params_changed = (backup_params.zone1_size_z_mtr != tunable_params_.zone1_size_z_mtr) ||
+                                 (backup_params.zone1_size_x_mtr != tunable_params_.zone1_size_x_mtr) ||
+                                 (backup_params.zone2_size_z_mtr != tunable_params_.zone2_size_z_mtr) ||
+                                 (backup_params.zone2_size_x_mtr != tunable_params_.zone2_size_x_mtr) ||
+                                 (backup_params.zone3_size_z_mtr != tunable_params_.zone3_size_z_mtr) ||
+                                 (backup_params.zone3_size_x_mtr != tunable_params_.zone3_size_x_mtr) ||
+                                 (backup_params.zone1_shape != tunable_params_.zone1_shape) ||
+                                 (backup_params.zone2_shape != tunable_params_.zone2_shape) ||
+                                 (backup_params.zone3_shape != tunable_params_.zone3_shape) ||
+                                 (backup_params.zone1_enabled != tunable_params_.zone1_enabled) ||
+                                 (backup_params.zone2_enabled != tunable_params_.zone2_enabled) ||
+                                 (backup_params.zone3_enabled != tunable_params_.zone3_enabled);
+    
+    if (zone_params_changed) {
+      RCLCPP_INFO(this->get_logger(), 
+                  "Zone parameters updated successfully - Z1(%.2f,%.2f) < Z2(%.2f,%.2f) < Z3(%.2f,%.2f)",
+                  tunable_params_.zone1_size_z_mtr, tunable_params_.zone1_size_x_mtr,
+                  tunable_params_.zone2_size_z_mtr, tunable_params_.zone2_size_x_mtr,
+                  tunable_params_.zone3_size_z_mtr, tunable_params_.zone3_size_x_mtr);
+    }
+    
     return result;
   }
 
