@@ -468,11 +468,23 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     return cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC3);
   }
 
-  // Copy cached background image (mutex protected)
+  // PERFORMANCE OPTIMIZED: Start with depth image base, then selectively overlay cached content
   cv::Mat out_visualization_image;
+  cv::cvtColor(m_vcam_final_image, out_visualization_image, cv::COLOR_GRAY2BGR);
+
+  // PERFORMANCE: Efficiently blend cached zone fills with depth image using mask
+  // The cache only has zone fills for enabled zones; disabled zones are black (0,0,0)
+  // We selectively copy cache content where it's non-black to preserve depth data elsewhere
   {
     std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
-    out_visualization_image = zone_background_image_.clone();
+    
+    // Create mask of where cache has content (non-black pixels)
+    cv::Mat cache_content_mask;
+    cv::cvtColor(zone_background_image_, cache_content_mask, cv::COLOR_BGR2GRAY);
+    cache_content_mask = (cache_content_mask > 0);
+    
+    // Copy cache content (zone fills + status boxes) over depth image using mask
+    zone_background_image_.copyTo(out_visualization_image, cache_content_mask);
   }
 
   // Apply ROI if valid
@@ -493,7 +505,7 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     }
   }
 
-  // Overlay detected objects using cached masks (fast operation)
+  // PERFORMANCE: Overlay detected objects with bright colors (fast masked operations)
   for (int z = 0; z < num_zones; z++) {
     if (!zones[z].enabled || !zone_detected[z]) continue;
 
@@ -502,7 +514,6 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
 
     // Fast masked copy: only copy where mask is non-zero AND detected in vcam
     cv::Mat combined_mask;
-    cv::Mat zone_mask_roi, vcam_roi_full;
     
     {
       std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
@@ -519,15 +530,22 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     zone_color_layer.copyTo(out_visualization_image, full_combined_mask);
   }
 
-  // Handle pixels outside all zones (show as gray) - fast operation
-  if (num_zones > 0) {
-    cv::Mat outside_all_zones;
-    {
-      std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
-      cv::bitwise_not(cached_cumulative_mask_, outside_all_zones);
+  // PERFORMANCE: Handle pixels outside all enabled zones using cached masks
+  {
+    std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
+    
+    // Build mask of enabled zones only
+    cv::Mat enabled_zones_mask = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+    for (int z = 0; z < num_zones; z++) {
+      if (zones[z].enabled) {
+        cv::bitwise_or(enabled_zones_mask, cached_zone_masks_[z], enabled_zones_mask);
+      }
     }
     
-    cv::Mat outside_roi = outside_all_zones(roi);
+    cv::Mat outside_enabled_zones;
+    cv::bitwise_not(enabled_zones_mask, outside_enabled_zones);
+    
+    cv::Mat outside_roi = outside_enabled_zones(roi);
     cv::Mat detected_outside;
     cv::bitwise_and(vcam_roi, outside_roi, detected_outside);
 
@@ -540,7 +558,7 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     gray_layer.copyTo(out_visualization_image, full_outside_mask);
   }
 
-  // Paint floor pixels if enabled (keep optimized)
+  // PERFORMANCE: Paint floor pixels if enabled (single mask operation)
   if (enable_floor_paint_) {
     int scale_factor = 8192;
     ADIImage in_img;
@@ -555,51 +573,46 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     ImageProcUtils::convertTo8BppImage(&in_img, &out_img, scale_factor);
     cv::Mat floor_image = cv::Mat(image_height_, image_width_, CV_8UC1, vcam_depth_frame_8bpp_);
 
-    // Optimize floor painting with OpenCV operations
+    // Paint floor pixels with gray color wherever floor is detected (single copyTo)
     cv::Mat floor_mask = (floor_image > 0);
     cv::Mat floor_color(image_height_, image_width_, CV_8UC3, cv::Scalar(100, 100, 100));
-    
-    // Only paint where floor exists and it's not already showing detected objects
-    // This requires checking against zone fill colors
-    for (int z = 0; z < num_zones; z++) {
-      if (!zones[z].enabled) continue;
-      
-      cv::Scalar fill_color = getZoneFillColor(z);
-      
-      // Create mask for this zone fill color
-      cv::Mat zone_fill_mask;
-      cv::inRange(out_visualization_image, fill_color, fill_color, zone_fill_mask);
-      
-      // Paint floor in zone fill areas
-      floor_color.copyTo(out_visualization_image, zone_fill_mask & floor_mask);
-    }
-    
-    // Also paint floor in black areas
-    cv::Mat black_mask;
-    cv::inRange(out_visualization_image, cv::Scalar(0, 0, 0), cv::Scalar(0, 0, 0), black_mask);
-    floor_color.copyTo(out_visualization_image, black_mask & floor_mask);
+    floor_color.copyTo(out_visualization_image, floor_mask);
   }
 
-  // Update status indicator boxes for detected zones (only update boxes, not labels)
+  // Draw status indicator boxes at top-left corner
   int box_size = 20;
   int box_spacing = 5;
   int start_x = 8;
   int start_y = 10;
 
   for (int z = 0; z < num_zones; z++) {
-    if (!zones[z].enabled) continue;  // Skip disabled zones (already drawn gray with X)
-    
     cv::Rect box(start_x + z * (box_size + box_spacing), start_y, box_size, box_size);
-    
-    if (zone_detected[z]) {
-      // Detected: filled box with bright zone color (update from cached state)
-      cv::Scalar zone_color = getZoneBGRColor(z);
+    cv::Scalar zone_color = getZoneBGRColor(z);
+    cv::Scalar fill_color = getZoneFillColor(z);
+
+    if (!zones[z].enabled) {
+      // Disabled zone: gray box with X
+      cv::rectangle(out_visualization_image, box, cv::Scalar(80, 80, 80), -1);
+      cv::line(out_visualization_image, box.tl(), box.br(), cv::Scalar(128, 128, 128), 2);
+      cv::line(out_visualization_image, cv::Point(box.x + box.width, box.y), 
+               cv::Point(box.x, box.y + box.height), cv::Scalar(128, 128, 128), 2);
+    } else if (zone_detected[z]) {
+      // Detected: filled box with bright zone color
       cv::rectangle(out_visualization_image, box, zone_color, -1);
+    } else {
+      // Not detected: filled with dim color, bright outline
+      cv::rectangle(out_visualization_image, box, fill_color, -1);
+      cv::rectangle(out_visualization_image, box, zone_color, 2);
     }
-    // Else: keep cached state (filled with dim color, bright outline)
   }
 
-  // Labels are already drawn in cached background, no need to redraw
+  // Add zone labels (1, 2, 3, ...) below status boxes
+  for (int z = 0; z < num_zones; z++) {
+    cv::Point text_pos(start_x + z * (box_size + box_spacing) + 5, start_y + box_size + 15);
+    cv::putText(
+      out_visualization_image, std::to_string(z + 1), text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.4,
+      cv::Scalar(255, 255, 255), 1);
+  }
 
   return out_visualization_image;
 }
