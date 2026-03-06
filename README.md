@@ -4,7 +4,7 @@
 The **ADI 3DToF Safety Bubble Detector** is a ROS(Robot Operating System) package for the Safety Bubble Detection application. The Safety Bubble Detectors are the basic building block of any AGV/AMR.
 The safety zone is a virtual area around an AGV/AMR. The Safety Bubble Detectors are used to detect the
 presence of any object inside this zone and prevent the AGV/AMR from colliding with the object.
-
+**Multi-Zone Detection**: The system supports up to **3 configurable zones** (Zone 1: danger/red, Zone 2: warning/yellow, Zone 3: caution/green). Each zone can be independently configured with different shapes (circle/rectangle), dimensions, and enable/disable states, providing flexible safety configurations for different robot operating requirements.
 The **ADI 3DToF Safety Bubble Detector** is developed as a ROS application running on the ADI’s *EVAL-ADTF3175D-NXZ* Time-of-Flight platform. The Safety Bubble Detection algorithm is highly optimized to run at 30FPS on the *EVAL-ADTF3175D-NXZ* platform.
 The node uses [*ADI ToF SDK*](https://github.com/analogdevicesinc/ToF/) APIs to capture the frames from the sensor. The algorithm is run on the captured images and the output is published as ROS topics.
 The Node publishes the detection flag and the output visualization image as the topics. The Depth and IR images are also published as ROS topics. The topics are published at 30FPS.
@@ -184,6 +184,70 @@ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_si
 | **arg_config_file_name_of_tof_sdk**           | String     | "config/config_adsd3500_adsd3100.json" | Configuration file name of ToF SDK. Varies based on Eval Board series.                             |
 | **arg_camera_mode**                            | int     | 3                                | Frame Type. Varies based on Eval Board series.                                                      |
 
+### Multi-Zone Configuration Parameters
+
+The Safety Bubble Detector supports 3 independently configurable zones for flexible safety monitoring. Each zone can be individually configured for shape, size, and enabled state. **Zones must be progressively larger** (Zone 1 < Zone 2 < Zone 3) to ensure proper mutually exclusive detection.
+
+#### Zone Configuration Rules:
+- **Zone 1** (innermost/danger zone): Red visualization, highest priority
+- **Zone 2** (middle/warning zone): Yellow visualization, medium priority  
+- **Zone 3** (outermost/caution zone): Green visualization, lowest priority
+- All zones are **mutually exclusive** - objects are detected in the smallest zone they occupy
+- Zone dimensions must satisfy: `zone1_size < zone2_size < zone3_size`
+- Invalid configurations are rejected at startup and runtime with clear error messages
+
+#### Zone Parameters:
+
+| Parameter                                       | Type       | Default   | Range        | Description                                                                    |
+|-------------------------------------------------|------------|-----------|--------------|--------------------------------------------------------------------------------|
+| **param_zone1_shape**                           | int        | 0         | 0-1          | Zone 1 shape: 0=Circle, 1=Rectangle                                          |
+| **param_zone1_radius_z_mtr**                    | double     | 0.5       | 0.1-10.0     | Zone 1 radius (circle) or half-height (rectangle) in meters                   |
+| **param_zone1_width_x_mtr**                     | double     | 0.5       | 0.1-10.0     | Zone 1 half-width (rectangle only) in meters                                  |
+| **param_zone1_enabled**                         | bool       | true      | true/false   | Enable/disable Zone 1 detection                                               |
+| **param_zone2_shape**                           | int        | 0         | 0-1          | Zone 2 shape: 0=Circle, 1=Rectangle                                          |
+| **param_zone2_radius_z_mtr**                    | double     | 1.0       | 0.1-10.0     | Zone 2 radius (circle) or half-height (rectangle) in meters                   |
+| **param_zone2_width_x_mtr**                     | double     | 1.0       | 0.1-10.0     | Zone 2 half-width (rectangle only) in meters                                  |
+| **param_zone2_enabled**                         | bool       | true      | true/false   | Enable/disable Zone 2 detection                                               |
+| **param_zone3_shape**                           | int        | 0         | 0-1          | Zone 3 shape: 0=Circle, 1=Rectangle                                          |
+| **param_zone3_radius_z_mtr**                    | double     | 1.5       | 0.1-10.0     | Zone 3 radius (circle) or half-height (rectangle) in meters                   |
+| **param_zone3_width_x_mtr**                     | double     | 1.5       | 0.1-10.0     | Zone 3 half-width (rectangle only) in meters                                  |
+| **param_zone3_enabled**                         | bool       | true      | true/false   | Enable/disable Zone 3 detection                                               |
+| **param_safety_bubble_sensitivity**             | int        | 10        | 1-1000       | Number of connected pixels required to trigger object detection                |
+
+#### Zone Configuration Examples:
+
+**Example 1: Circular zones (default)**
+```yaml
+param_zone1_shape: 0          # Circle
+param_zone1_radius_z_mtr: 0.5 # 0.5m radius
+param_zone2_radius_z_mtr: 1.0 # 1.0m radius  
+param_zone3_radius_z_mtr: 1.5 # 1.5m radius
+```
+
+**Example 2: Rectangular zones**
+```yaml
+param_zone1_shape: 1          # Rectangle
+param_zone1_radius_z_mtr: 0.4 # 0.8m tall (2x half-height)
+param_zone1_width_x_mtr: 0.3  # 0.6m wide (2x half-width)
+param_zone2_radius_z_mtr: 0.8
+param_zone2_width_x_mtr: 0.6
+param_zone3_radius_z_mtr: 1.2
+param_zone3_width_x_mtr: 1.0
+```
+
+**Example 3: Mixed configuration with disabled middle zone**
+```yaml
+param_zone1_enabled: true
+param_zone2_enabled: false    # Zone 2 disabled - no yellow warning zone
+param_zone3_enabled: true
+```
+
+> [!important]
+> **Zone Size Validation**: The system enforces that zones grow progressively larger. If you attempt to configure Zone 1 ≥ Zone 2 or Zone 2 ≥ Zone 3, the change will be rejected with an error message. This ensures proper mutually exclusive detection and prevents zone overlap.
+
+> [!note]
+> **Dynamic Reconfiguration**: All zone parameters can be adjusted at runtime using RQT dynamic reconfigure. Invalid configurations will be rejected and the previous valid values will be retained.
+
 ## Camera Modes
 
 | Imager Type       | Mode Name     | Mode Value |
@@ -319,6 +383,20 @@ ros2 launch adi_3dtof_safety_bubble_detector adi_3dtof_safety_bubble_detector_rq
 ```
 
 Make sure the *adi_3dtof_safety_bubble_detector node* is already running before executing this command.
+
+### Zone Visualization Features
+
+The output image visualization includes:
+- **Zone overlays**: Semi-transparent colored zone boundaries (50% alpha blending)
+  - Red = Zone 1 (danger/innermost)
+  - Yellow = Zone 2 (warning/middle)  
+  - Green = Zone 3 (caution/outer)
+- **Floor visualization**: Gray color overlay on detected floor pixels (when enabled)
+- **Detection indicators**: Bright colored highlights on detected objects within each zone
+- **Status boxes**: Top-left corner shows zone enable/disable status with visual indicators
+- **Optimized rendering**: Zone blending uses bounding-box optimization for minimal MIPS impact
+
+The zone visualization can be toggled on/off using the `param_enable_safety_bubble_zone_visualization` parameter while keeping detection status indicators always visible.
 
 > [!note]
 > For multi-camera setups, RQT is automatically launched with the stitch host node. RViz can be added separately if needed for 3D visualization.
