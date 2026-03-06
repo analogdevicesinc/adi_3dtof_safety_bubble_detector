@@ -362,6 +362,98 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
   cv::Mat m_vcam_final_image = cv::Mat(
     cv::Size(image_width_, image_height_), CV_8UC1, vcam_depth_image_floor_pixels_removed_8bpp);
 
+  // Define zone color getters (used in both visualization modes)
+  auto getZoneBGRColor = [](int zone_idx) -> cv::Scalar {
+    if (zone_idx == 0) {
+      return cv::Scalar(0, 0, 255);  // Red (danger)
+    } else if (zone_idx == 1) {
+      return cv::Scalar(0, 255, 255);  // Yellow (warning)
+    } else {
+      return cv::Scalar(0, 255, 0);  // Green (safe)
+    }
+  };
+
+  auto getZoneFillColor = [](int zone_idx) -> cv::Scalar {
+    if (zone_idx == 0) {
+      return cv::Scalar(0, 0, 80);  // Dark red
+    } else if (zone_idx == 1) {
+      return cv::Scalar(0, 80, 80);  // Dark yellow
+    } else {
+      return cv::Scalar(0, 80, 0);  // Dark green
+    }
+  };
+
+  // If zone visualization is disabled, return simple depth visualization with status indicators
+  if (!enable_safety_bubble_zone_visualization_) {
+    cv::Mat simple_output;
+    cv::cvtColor(m_vcam_final_image, simple_output, cv::COLOR_GRAY2BGR);
+    
+    // Still apply floor paint if enabled (independent parameter)
+    if (enable_floor_paint_) {
+      int scale_factor = 8192;
+      ADIImage in_img;
+      in_img.data = vcam_depth_frame_with_floor;
+      in_img.bpp = 16;
+      in_img.width = image_width_;
+      in_img.height = image_height_;
+      in_img.roi = nullptr;
+      ADIImage out_img = in_img;
+      out_img.data = vcam_depth_frame_8bpp_;
+      out_img.bpp = 8;
+      ImageProcUtils::convertTo8BppImage(&in_img, &out_img, scale_factor);
+      cv::Mat floor_image = cv::Mat(image_height_, image_width_, CV_8UC1, vcam_depth_frame_8bpp_);
+      
+      cv::Mat floor_mask = (floor_image > 0);
+      cv::Mat floor_color(image_height_, image_width_, CV_8UC3, cv::Scalar(100, 100, 100));
+      floor_color.copyTo(simple_output, floor_mask);
+    }
+    
+    // Always draw status indicator boxes (top-left corner) even when zone visualization is off
+    const std::vector<ZoneConfig> & zones = multi_zone_config_.getZones();
+    const int num_zones = static_cast<int>(zones.size());
+    int box_size = 20;
+    int box_spacing = 5;
+    int start_x = 8;
+    int start_y = 10;
+
+    for (int z = 0; z < num_zones; z++) {
+      cv::Rect box(start_x + z * (box_size + box_spacing), start_y, box_size, box_size);
+      cv::Scalar zone_color = getZoneBGRColor(z);
+      cv::Scalar fill_color = getZoneFillColor(z);
+
+      if (!zones[z].enabled) {
+        // Disabled zone: gray box with X
+        cv::rectangle(simple_output, box, cv::Scalar(80, 80, 80), -1);
+        cv::line(simple_output, box.tl(), box.br(), cv::Scalar(128, 128, 128), 2);
+        cv::line(simple_output, cv::Point(box.x + box.width, box.y), 
+                 cv::Point(box.x, box.y + box.height), cv::Scalar(128, 128, 128), 2);
+      } else {
+        // Check detection status from result
+        bool detected = (z < static_cast<int>(detection_result.zone_detected.size())) 
+                        && detection_result.zone_detected[z];
+        
+        if (detected) {
+          // Detected: filled box with bright zone color
+          cv::rectangle(simple_output, box, zone_color, -1);
+        } else {
+          // Not detected: filled with dim color, bright outline
+          cv::rectangle(simple_output, box, fill_color, -1);
+          cv::rectangle(simple_output, box, zone_color, 2);
+        }
+      }
+    }
+
+    // Add zone labels (1, 2, 3, ...) below status boxes
+    for (int z = 0; z < num_zones; z++) {
+      cv::Point text_pos(start_x + z * (box_size + box_spacing) + 5, start_y + box_size + 15);
+      cv::putText(
+        simple_output, std::to_string(z + 1), text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.4,
+        cv::Scalar(255, 255, 255), 1);
+    }
+    
+    return simple_output;
+  }
+
   // Rebuild cache if invalid
   if (!visualization_cache_valid_) {
     rebuildVisualizationCache();
@@ -382,27 +474,6 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     std::lock_guard<std::mutex> lock(visualization_cache_mutex_);
     out_visualization_image = zone_background_image_.clone();
   }
-
-  // Define zone colors (needed for detected object overlay and status box updates)
-  auto getZoneBGRColor = [](int zone_idx) -> cv::Scalar {
-    if (zone_idx == 0) {
-      return cv::Scalar(0, 0, 255);  // Red (danger)
-    } else if (zone_idx == 1) {
-      return cv::Scalar(0, 255, 255);  // Yellow (warning)
-    } else {
-      return cv::Scalar(0, 255, 0);  // Green (safe)
-    }
-  };
-
-  auto getZoneFillColor = [](int zone_idx) -> cv::Scalar {
-    if (zone_idx == 0) {
-      return cv::Scalar(0, 0, 80);  // Dark red
-    } else if (zone_idx == 1) {
-      return cv::Scalar(0, 80, 80);  // Dark yellow
-    } else {
-      return cv::Scalar(0, 80, 0);  // Dark green
-    }
-  };
 
   // Apply ROI if valid
   cv::Rect roi = cv::Rect(valid_roi_.x, valid_roi_.y, valid_roi_.width, valid_roi_.height);
