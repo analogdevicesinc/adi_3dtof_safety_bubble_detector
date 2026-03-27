@@ -120,24 +120,28 @@
     param_zone_config_file: ""
     
     # Zone 1 Parameters (Dynamic Reconfigurable)
-    # Innermost zone - typically "danger" zone (red visualization)
+    # Zone 1 - "danger" zone (red visualization)
+    # Each zone is measured independently from the camera origin.
+    # A detection fires if any object falls within that zone's area, regardless of other zones.
     param_zone1_shape: 0              # 0=Circle, 1=Rectangle
-    param_zone1_radius_z_mtr: 0.5     # Radius (circle) or half-height (rectangle) in meters
-    param_zone1_width_x_mtr: 0.5      # Half-width (rectangle only) in meters
+    param_zone1_radius_z_mtr: 0.5     # Radius (circle) or half-height (rectangle) in meters, from origin
+    param_zone1_width_x_mtr: 0.5      # Half-width (rectangle only) in meters, from origin
     param_zone1_enabled: true         # Enable/disable zone 1
     
     # Zone 2 Parameters (Dynamic Reconfigurable)
-    # Middle zone - typically "warning" zone (yellow visualization)
+    # Zone 2 - "warning" zone (yellow visualization)
+    # Zones do NOT need to be ordered by size. Each zone is fully independent from the origin.
     param_zone2_shape: 0              # 0=Circle, 1=Rectangle
-    param_zone2_radius_z_mtr: 1.0     # Radius (circle) or half-height (rectangle) in meters
-    param_zone2_width_x_mtr: 1.0      # Half-width (rectangle only) in meters
+    param_zone2_radius_z_mtr: 1.0     # Radius (circle) or half-height (rectangle) in meters, from origin
+    param_zone2_width_x_mtr: 1.0      # Half-width (rectangle only) in meters, from origin
     param_zone2_enabled: true         # Enable/disable zone 2
     
     # Zone 3 Parameters (Dynamic Reconfigurable)
-    # Outermost zone - typically "caution" zone (green visualization)
+    # Zone 3 - "caution" zone (green visualization)
+    # Any number of zones can be active simultaneously and triggered independently.
     param_zone3_shape: 0              # 0=Circle, 1=Rectangle
-    param_zone3_radius_z_mtr: 1.5     # Radius (circle) or half-height (rectangle) in meters
-    param_zone3_width_x_mtr: 1.5      # Half-width (rectangle only) in meters
+    param_zone3_radius_z_mtr: 1.5     # Radius (circle) or half-height (rectangle) in meters, from origin
+    param_zone3_width_x_mtr: 1.5      # Half-width (rectangle only) in meters, from origin
     param_zone3_enabled: true         # Enable/disable zone 3
 
 # ============================================================================

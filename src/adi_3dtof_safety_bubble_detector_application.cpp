@@ -268,22 +268,18 @@ void ADI3DToFSafetyBubbleDetector::rebuildVisualizationCache()
     }
   }
 
-  // Create non-overlapping zone masks and store in cache
+  // Each zone is independent from origin - store full zone masks
   cached_zone_masks_.resize(num_zones);
   for (int z = 0; z < num_zones; z++) {
-    if (z == 0) {
-      cached_zone_masks_[z] = cumulative_masks[z].clone();
-    } else {
-      cached_zone_masks_[z] = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
-      cv::subtract(cumulative_masks[z], cumulative_masks[z - 1], cached_zone_masks_[z]);
-    }
+    cached_zone_masks_[z] = cumulative_masks[z].clone();
   }
 
-  // Cache cumulative mask for outside-zone detection
-  if (num_zones > 0) {
-    cached_cumulative_mask_ = cumulative_masks[num_zones - 1].clone();
-  } else {
-    cached_cumulative_mask_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+  // Cache union of all enabled zones for outside-zone detection
+  cached_cumulative_mask_ = cv::Mat::zeros(cv::Size(image_width_, image_height_), CV_8UC1);
+  for (int z = 0; z < num_zones; z++) {
+    if (zones[z].enabled) {
+      cv::bitwise_or(cached_cumulative_mask_, cumulative_masks[z], cached_cumulative_mask_);
+    }
   }
 
   // Create background image with zone fills
@@ -552,8 +548,9 @@ cv::Mat ADI3DToFSafetyBubbleDetector::generateVisualizationImage(
     }
   }
 
-  // LAYER 3: Overlay detected objects with bright colors (fast masked operations)
-  for (int z = 0; z < num_zones; z++) {
+  // LAYER 3: Overlay detected objects with bright colors (outermost first, innermost last so
+  // the innermost zone color wins when multiple zones are triggered by the same object)
+  for (int z = num_zones - 1; z >= 0; z--) {
     if (!zones[z].enabled || !zone_detected[z]) continue;
 
     cv::Scalar zone_color = getZoneBGRColor(z);

@@ -265,8 +265,8 @@ MultiZoneDetectionResult MultiZoneDetector::detectZones(
       continue;
     }
 
-    // Get exclusive zone mask for this zone
-    cv::Mat zone_mask_roi = exclusive_zone_masks_[i](valid_roi);
+    // Get full zone mask for this zone - each zone is measured independently from the origin
+    cv::Mat zone_mask_roi = zone_masks_[i](valid_roi);
 
     // Apply mask to depth image
     cv::Mat masked_depth;
